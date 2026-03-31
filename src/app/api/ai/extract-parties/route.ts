@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -17,7 +17,7 @@ export async function POST() {
     .from("transactions")
     .select("id, description, amount, direction, account, account_name, symbol, security, raw_data")
     .or("counterparty.eq.,counterparty.is.null")
-    .limit(500);
+    .limit(30);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,7 +35,7 @@ export async function POST() {
     .limit(30);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 50;
+  const batchSize = 15;
   let totalExtracted = 0;
 
   for (let i = 0; i < txns.length; i += batchSize) {

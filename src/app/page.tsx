@@ -95,16 +95,18 @@ export default function Home() {
 
   const runPartyExtraction = async () => {
     setPartyLoading(true);
-    setPartyStatus({ type: "info", msg: "AI is identifying counterparties from descriptions..." });
+    setPartyStatus({ type: "info", msg: "AI is identifying counterparties (processes ~30 at a time, run again for more)..." });
     try {
       const res = await fetch("/api/ai/extract-parties", { method: "POST" });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: `Server error (${res.status}): ${text.slice(0, 200)}` }; }
       if (data.error) setPartyStatus({ type: "error", msg: data.error });
       else {
-        setPartyStatus({ type: "success", msg: data.message });
+        setPartyStatus({ type: "success", msg: `${data.message}. Run again if more transactions need processing.` });
         loadAnalytics();
       }
-    } catch (err: any) { setPartyStatus({ type: "error", msg: err.message }); }
+    } catch (err: any) { setPartyStatus({ type: "error", msg: "Request failed: " + err.message }); }
     setPartyLoading(false);
   };
 
@@ -209,7 +211,9 @@ export default function Home() {
     setAiStatus({ type: "info", msg: "AI is analyzing transactions. This may take a moment..." });
     try {
       const res = await fetch("/api/ai/categorize", { method: "POST" });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: `Server error (${res.status}): ${text.slice(0, 200)}` }; }
       if (data.error) setAiStatus({ type: "error", msg: data.error });
       else {
         const flagged = data.results?.filter((r: any) => r.flag === "suspicious" || r.flag === "critical").length || 0;
@@ -219,7 +223,7 @@ export default function Home() {
         });
         loadStats();
       }
-    } catch (err: any) { setAiStatus({ type: "error", msg: err.message }); }
+    } catch (err: any) { setAiStatus({ type: "error", msg: "Request failed: " + err.message }); }
     setAiLoading(false);
   };
 
