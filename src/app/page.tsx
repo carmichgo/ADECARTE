@@ -22,8 +22,9 @@ interface Transaction {
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
 interface Stats {
-  total_transactions: number; total_amount: number; categorized: number;
-  uncategorized: number; suspicious_amount: number;
+  total_transactions: number; total_amount: number; total_deposits: number;
+  total_withdrawals: number; deposit_count: number; withdrawal_count: number;
+  categorized: number; uncategorized: number; suspicious_amount: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
 }
 
@@ -452,17 +453,25 @@ export default function Home() {
         {tab === "dashboard" && stats && (
           <>
             <h2 className="text-2xl font-semibold mb-6">Investigation Dashboard</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-              {[
-                ["Total Transactions", stats.total_transactions, false],
-                ["Total Amount", fmt(stats.total_amount), false],
-                ["Categorized", stats.categorized, false],
-                ["Uncategorized", stats.uncategorized, false],
-                ["Suspicious Amount", fmt(stats.suspicious_amount), true],
-              ].map(([label, value, alert], i) => (
-                <div key={i} className={`bg-[var(--bg-card)] border rounded-lg p-5 text-center ${alert ? "border-red-500 bg-red-500/5" : "border-[var(--border)]"}`}>
-                  <div className="text-xs text-[var(--text-muted)] uppercase tracking-wide">{label as string}</div>
-                  <div className="text-2xl font-bold mt-2">{String(value)}</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+              {([
+                ["Total Txns", stats.total_transactions, ""],
+                ["Net Amount", fmt(stats.total_amount), ""],
+                ["Total Deposits", fmt(stats.total_deposits), "green"],
+                ["Total Withdrawals", fmt(stats.total_withdrawals), "red"],
+                ["Categorized", stats.categorized, ""],
+                ["Uncategorized", stats.uncategorized, ""],
+                ["Suspicious", fmt(stats.suspicious_amount), "alert"],
+              ] as [string, any, string][]).map(([label, value, color], i) => (
+                <div key={i} className={`bg-[var(--bg-card)] border rounded-lg p-4 text-center ${
+                  color === "alert" ? "border-red-500 bg-red-500/5" :
+                  color === "green" ? "border-green-500/30 bg-green-500/5" :
+                  color === "red" ? "border-red-500/30 bg-red-500/5" : "border-[var(--border)]"
+                }`}>
+                  <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">{label}</div>
+                  <div className={`text-xl font-bold mt-1 ${color === "green" ? "text-green-400" : color === "red" || color === "alert" ? "text-red-400" : ""}`}>{String(value)}</div>
+                  {label === "Total Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.deposit_count} txns</div>}
+                  {label === "Total Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.withdrawal_count} txns</div>}
                 </div>
               ))}
             </div>
@@ -509,15 +518,37 @@ export default function Home() {
               </div>
               <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
                 <h3 className="font-semibold mb-3">By Account</h3>
-                <div className="max-h-72 overflow-y-auto space-y-1">
+                <div className="max-h-72 overflow-y-auto">
                   {!stats.by_account || stats.by_account.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
-                    stats.by_account.map((a: any, i: number) => (
-                      <div key={i} className="flex justify-between text-sm py-1.5 border-b border-[var(--border)]">
-                        <span className="flex-1 truncate font-medium">{a.account}</span>
-                        <span className="text-[var(--text-muted)] mx-2 text-xs">{a.count} txns</span>
-                        <span className={`font-semibold tabular-nums ${a.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(a.total_amount)}</span>
-                      </div>
-                    ))}
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-[var(--text-muted)] uppercase text-[10px]">
+                          <th className="text-left py-1 pr-2">Account</th>
+                          <th className="text-right py-1 px-1">Deposits</th>
+                          <th className="text-right py-1 px-1">Withdrawals</th>
+                          <th className="text-right py-1 pl-2">Net</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.by_account.map((a: any, i: number) => (
+                          <tr key={i} className="border-t border-[var(--border)]">
+                            <td className="py-1.5 pr-2 font-medium truncate max-w-[100px]">{a.account}</td>
+                            <td className="py-1.5 px-1 text-right text-green-400 tabular-nums">
+                              <div>{fmt(a.deposit_amount)}</div>
+                              <div className="text-[9px] text-[var(--text-muted)]">{a.deposits} txns</div>
+                            </td>
+                            <td className="py-1.5 px-1 text-right text-red-400 tabular-nums">
+                              <div>{fmt(a.withdrawal_amount)}</div>
+                              <div className="text-[9px] text-[var(--text-muted)]">{a.withdrawals} txns</div>
+                            </td>
+                            <td className={`py-1.5 pl-2 text-right font-semibold tabular-nums ${a.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>
+                              {fmt(a.total_amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  }
                 </div>
               </div>
             </div>

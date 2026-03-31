@@ -15,6 +15,10 @@ export async function GET() {
 
   const total = all.length;
   const totalAmount = all.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalDeposits = all.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0);
+  const totalWithdrawals = all.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const depositCount = all.filter(t => (t.amount || 0) > 0).length;
+  const withdrawalCount = all.filter(t => (t.amount || 0) < 0).length;
   const categorized = all.filter(t => t.category && t.category !== "").length;
   const uncategorized = total - categorized;
 
@@ -56,14 +60,14 @@ export async function GET() {
   const suspiciousBreakdown = Object.values(suspBreakMap).sort((a, b) => Math.abs(b.total_amount) - Math.abs(a.total_amount));
 
   // Group by account
-  const byAccountMap: Record<string, { count: number; total_amount: number; deposits: number; withdrawals: number }> = {};
+  const byAccountMap: Record<string, { count: number; total_amount: number; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number }> = {};
   all.forEach(t => {
     const acct = t.account || t.account_name || "Unknown";
-    if (!byAccountMap[acct]) byAccountMap[acct] = { count: 0, total_amount: 0, deposits: 0, withdrawals: 0 };
+    if (!byAccountMap[acct]) byAccountMap[acct] = { count: 0, total_amount: 0, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0 };
     byAccountMap[acct].count++;
     byAccountMap[acct].total_amount += t.amount || 0;
-    if ((t.amount || 0) > 0) byAccountMap[acct].deposits++;
-    else if ((t.amount || 0) < 0) byAccountMap[acct].withdrawals++;
+    if ((t.amount || 0) > 0) { byAccountMap[acct].deposits++; byAccountMap[acct].deposit_amount += t.amount; }
+    else if ((t.amount || 0) < 0) { byAccountMap[acct].withdrawals++; byAccountMap[acct].withdrawal_amount += Math.abs(t.amount); }
   });
   const byAccount = Object.entries(byAccountMap)
     .map(([account, v]) => ({ account, ...v }))
@@ -72,6 +76,10 @@ export async function GET() {
   return NextResponse.json({
     total_transactions: total,
     total_amount: totalAmount,
+    total_deposits: totalDeposits,
+    total_withdrawals: totalWithdrawals,
+    deposit_count: depositCount,
+    withdrawal_count: withdrawalCount,
     categorized,
     uncategorized,
     suspicious_amount: suspiciousAmount,
