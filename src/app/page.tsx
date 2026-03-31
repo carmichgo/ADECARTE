@@ -73,11 +73,24 @@ export default function Home() {
     if (filters.flag) q.set("flag", filters.flag);
     if (filters.min) q.set("min_amount", filters.min);
     if (filters.max) q.set("max_amount", filters.max);
-    q.set("order", sort.field);
-    if (sort.desc) q.set("desc", "1");
+    q.set("order", "id");
+    q.set("desc", "1");
     const res = await fetch("/api/transactions?" + q.toString(), { cache: "no-store" });
     const data = await res.json();
-    setTransactions(Array.isArray(data) ? data : []);
+    const rows = Array.isArray(data) ? data : [];
+    // Client-side sort for all columns
+    rows.sort((a: any, b: any) => {
+      let va = a[sort.field] ?? "";
+      let vb = b[sort.field] ?? "";
+      // Handle account_name fallback
+      if (sort.field === "account_name") { va = a.account_name || a.account || ""; vb = b.account_name || b.account || ""; }
+      if (typeof va === "number" && typeof vb === "number") return sort.desc ? vb - va : va - vb;
+      va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+      if (va < vb) return sort.desc ? 1 : -1;
+      if (va > vb) return sort.desc ? -1 : 1;
+      return 0;
+    });
+    setTransactions(rows);
     setSelectedIds(new Set());
   }, [filters, sort]);
 
@@ -454,26 +467,18 @@ export default function Home() {
                 <thead>
                   <tr>
                     <th className="bg-[var(--bg-hover)] px-3 py-2"><input type="checkbox" onChange={toggleAll} checked={selectedIds.size === transactions.length && transactions.length > 0} /></th>
-                    {[["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"]].map(([f, l]) => (
-                      <th key={f} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white"
+                    {([
+                      ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
+                      ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
+                      ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
+                      ["account_name", "Account"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
+                      ["category", "Category"], ["flag", "Flag"], ["categorized_by", "Source"],
+                    ] as [string, string][]).map(([f, l]) => (
+                      <th key={f} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
                         onClick={() => handleSort(f)}>
                         {l} {sort.field === f ? (sort.desc ? "↓" : "↑") : ""}
                       </th>
                     ))}
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Settle Date</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Symbol</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Security</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Direction</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Qty</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Unit Price</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Account</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Strategy</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Counterparty</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white" onClick={() => handleSort("category")}>
-                      Category {sort.field === "category" ? (sort.desc ? "↓" : "↑") : ""}
-                    </th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Flag</th>
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Source</th>
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2">Actions</th>
                   </tr>
                 </thead>
