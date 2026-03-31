@@ -61,6 +61,7 @@ export default function Home() {
   const [mergeSearch, setMergeSearch] = useState("");
   const [mergeStatus, setMergeStatus] = useState<{ type: string; msg: string } | null>(null);
   // Cluster detection config
+  const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
   const [clusterMinAmount, setClusterMinAmount] = useState(10000);
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
@@ -870,8 +871,14 @@ export default function Home() {
               <>
                 {/* Cluster Detection Config */}
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 mb-6">
-                  <h3 className="font-semibold mb-2 text-sm">Withdrawal Cluster Detection</h3>
-                  <div className="flex flex-wrap gap-4 items-center text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-sm">Withdrawal Cluster Detection</h3>
+                    <button onClick={() => setShowClusters(!showClusters)}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${showClusters ? "bg-red-500/20 border-red-500/50 text-red-400" : "border-[var(--border)] text-[var(--text-muted)]"}`}>
+                      {showClusters ? "Visible" : "Hidden"}
+                    </button>
+                  </div>
+                  <div className={`flex flex-wrap gap-4 items-center text-sm ${!showClusters ? "opacity-40 pointer-events-none" : ""}`}>
                     <div className="flex items-center gap-2">
                       <label className="text-[var(--text-muted)] text-xs">Min withdrawals:</label>
                       <input type="number" min={1} value={clusterMinWithdrawals} onChange={e => setClusterMinWithdrawals(Number(e.target.value) || 1)}
@@ -920,7 +927,7 @@ export default function Home() {
                           />
                         ))}
                         {/* Cluster highlight zones */}
-                        {withdrawalClusters.map((c, i) => (
+                        {showClusters && withdrawalClusters.map((c, i) => (
                           <ReferenceArea key={`cluster-${i}`}
                             x1={analyticsData.balance_over_time[c.startIdx]?.date}
                             x2={analyticsData.balance_over_time[c.endIdx]?.date}
@@ -932,7 +939,7 @@ export default function Home() {
                         <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
                         <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
                         {/* Cluster dots on balance line */}
-                        {withdrawalClusters.map((c, i) => {
+                        {showClusters && withdrawalClusters.map((c, i) => {
                           const midIdx = Math.floor((c.startIdx + c.endIdx) / 2);
                           const point = analyticsData.balance_over_time[midIdx];
                           if (!point) return null;
