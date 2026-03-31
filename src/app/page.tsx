@@ -54,6 +54,11 @@ export default function Home() {
   const [partyLoading, setPartyLoading] = useState(false);
   const [partyStatus, setPartyStatus] = useState<{ type: string; msg: string } | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+  const [counterparties, setCounterparties] = useState<Array<{ name: string; count: number; total_amount: number }>>([]);
+  const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
+  const [mergeCanonical, setMergeCanonical] = useState("");
+  const [mergeSearch, setMergeSearch] = useState("");
+  const [mergeStatus, setMergeStatus] = useState<{ type: string; msg: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCategories = useCallback(async () => {
@@ -126,7 +131,47 @@ export default function Home() {
   useEffect(() => { loadCategories(); loadStats(); }, [loadCategories, loadStats]);
   useEffect(() => { if (tab === "transactions" || tab === "suspicious") loadTransactions(); }, [tab, loadTransactions]);
   useEffect(() => { if (tab === "dashboard") loadStats(); }, [tab, loadStats]);
-  useEffect(() => { if (tab === "analytics") loadAnalytics(); }, [tab, loadAnalytics]);
+  useEffect(() => { if (tab === "analytics") { loadAnalytics(); loadCounterparties(); } }, [tab, loadAnalytics]);
+
+  const loadCounterparties = async () => {
+    const res = await fetch("/api/counterparties", { cache: "no-store" });
+    const data = await res.json();
+    if (Array.isArray(data)) setCounterparties(data);
+  };
+
+  const mergeCounterparties = async () => {
+    if (mergeSelected.size < 2 || !mergeCanonical) {
+      setMergeStatus({ type: "error", msg: "Select at least 2 counterparties and enter the canonical name." });
+      return;
+    }
+    setMergeStatus({ type: "info", msg: "Merging..." });
+    try {
+      const res = await fetch("/api/transactions/merge-counterparties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: [...mergeSelected], canonical: mergeCanonical }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (data.error) setMergeStatus({ type: "error", msg: data.error });
+      else {
+        setMergeStatus({ type: "success", msg: data.message });
+        setMergeSelected(new Set());
+        setMergeCanonical("");
+        loadCounterparties();
+        loadAnalytics();
+      }
+    } catch (err: any) { setMergeStatus({ type: "error", msg: err.message }); }
+  };
+
+  const toggleMergeSelect = (name: string) => {
+    const next = new Set(mergeSelected);
+    next.has(name) ? next.delete(name) : next.add(name);
+    setMergeSelected(next);
+    // Auto-set canonical to the first selected if not set
+    if (!mergeCanonical && next.size > 0) setMergeCanonical([...next][0]);
+  };
 
   // ── Upload ───
   const handleFile = (file: File) => {
@@ -677,6 +722,52 @@ export default function Home() {
                 </button>
               </div>
               {partyStatus && <StatusMsg status={partyStatus} />}
+            </div>
+
+            {/* Merge Counterparties */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+              <h3 className="font-semibold mb-1">Merge Counterparties</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-3">Select duplicate/similar counterparties and merge them into one canonical name.</p>
+              <div className="flex gap-2 mb-3 items-center">
+                <input placeholder="Search counterparties..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 w-64"
+                  value={mergeSearch} onChange={e => setMergeSearch(e.target.value)} />
+                <span className="text-xs text-[var(--text-muted)]">{mergeSelected.size} selected</span>
+                {mergeSelected.size > 0 && (
+                  <button onClick={() => { setMergeSelected(new Set()); setMergeCanonical(""); }} className="text-xs text-indigo-400 hover:underline">Clear</button>
+                )}
+              </div>
+              <div className="max-h-[250px] overflow-y-auto border border-[var(--border)] rounded-lg mb-3">
+                {counterparties.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)] p-4 text-center">No counterparties found. Run AI Party Identification first.</p>
+                ) : counterparties
+                    .filter(c => !mergeSearch || c.name.toLowerCase().includes(mergeSearch.toLowerCase()))
+                    .map(c => (
+                  <label key={c.name}
+                    className={`flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-hover)] cursor-pointer border-b border-[var(--border)] last:border-0 text-sm ${mergeSelected.has(c.name) ? "bg-indigo-500/10" : ""}`}>
+                    <input type="checkbox" checked={mergeSelected.has(c.name)} onChange={() => toggleMergeSelect(c.name)} />
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <span className="text-[var(--text-muted)] text-xs">{c.count} txns</span>
+                    <span className={`text-xs tabular-nums font-medium ${c.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(c.total_amount)}</span>
+                  </label>
+                ))}
+              </div>
+              {mergeSelected.size >= 2 && (
+                <div className="flex gap-2 items-center">
+                  <label className="text-sm text-[var(--text-muted)] whitespace-nowrap">Merge into:</label>
+                  <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5 flex-1"
+                    value={mergeCanonical} onChange={e => setMergeCanonical(e.target.value)}>
+                    {[...mergeSelected].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <span className="text-[var(--text-muted)]">or</span>
+                  <input placeholder="Custom name..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 flex-1"
+                    value={[...mergeSelected].includes(mergeCanonical) ? "" : mergeCanonical}
+                    onChange={e => setMergeCanonical(e.target.value)} />
+                  <button onClick={mergeCounterparties} className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded text-sm font-medium whitespace-nowrap">
+                    Merge ({mergeSelected.size})
+                  </button>
+                </div>
+              )}
+              {mergeStatus && <StatusMsg status={mergeStatus} />}
             </div>
 
             {!analyticsData ? (
