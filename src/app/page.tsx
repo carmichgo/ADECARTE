@@ -468,6 +468,7 @@ export default function Home() {
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Unit Price</th>
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Account</th>
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Strategy</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Counterparty</th>
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white" onClick={() => handleSort("category")}>
                       Category {sort.field === "category" ? (sort.desc ? "↓" : "↑") : ""}
                     </th>
@@ -478,7 +479,7 @@ export default function Home() {
                 </thead>
                 <tbody>
                   {transactions.length === 0 ? (
-                    <tr><td colSpan={16} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
+                    <tr><td colSpan={17} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
                   ) : transactions.map(t => {
                     const dirLower = (t.direction || "").toLowerCase();
                     const dirColor = dirLower.match(/^(internal|transfer between|internal transfer)/)
@@ -512,6 +513,7 @@ export default function Home() {
                       <td className="px-3 py-2 tabular-nums">{t.unit_price ? fmt(t.unit_price) : "-"}</td>
                       <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
+                      <td className="px-3 py-2">{t.counterparty || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
