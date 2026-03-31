@@ -23,7 +23,7 @@ interface Category { id: number; name: string; description: string; is_suspiciou
 interface Stats {
   total_transactions: number; total_amount: number; categorized: number;
   uncategorized: number; suspicious_amount: number;
-  suspicious_breakdown: any[]; by_category: any[]; by_flag: any[];
+  suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
 }
 
 const fmt = (n: number | null) => {
@@ -463,7 +463,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
                 <h3 className="font-semibold mb-3">By Category</h3>
                 <div className="max-h-72 overflow-y-auto space-y-1">
@@ -500,6 +500,19 @@ export default function Home() {
                         <FlagBadge flag={s.flag} />
                         <span className="text-[var(--text-muted)] mx-2">{s.count}</span>
                         <span className="font-semibold text-red-400 tabular-nums">{fmt(s.total_amount)}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+                <h3 className="font-semibold mb-3">By Account</h3>
+                <div className="max-h-72 overflow-y-auto space-y-1">
+                  {!stats.by_account || stats.by_account.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
+                    stats.by_account.map((a: any, i: number) => (
+                      <div key={i} className="flex justify-between text-sm py-1.5 border-b border-[var(--border)]">
+                        <span className="flex-1 truncate font-medium">{a.account}</span>
+                        <span className="text-[var(--text-muted)] mx-2 text-xs">{a.count} txns</span>
+                        <span className={`font-semibold tabular-nums ${a.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(a.total_amount)}</span>
                       </div>
                     ))}
                 </div>

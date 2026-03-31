@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by").limit(10000);
+  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name").limit(10000);
 
   if (error) {
     console.error("Stats query error:", error);
@@ -55,6 +55,20 @@ export async function GET() {
   });
   const suspiciousBreakdown = Object.values(suspBreakMap).sort((a, b) => Math.abs(b.total_amount) - Math.abs(a.total_amount));
 
+  // Group by account
+  const byAccountMap: Record<string, { count: number; total_amount: number; deposits: number; withdrawals: number }> = {};
+  all.forEach(t => {
+    const acct = t.account_name || t.account || "Unknown";
+    if (!byAccountMap[acct]) byAccountMap[acct] = { count: 0, total_amount: 0, deposits: 0, withdrawals: 0 };
+    byAccountMap[acct].count++;
+    byAccountMap[acct].total_amount += t.amount || 0;
+    if ((t.amount || 0) > 0) byAccountMap[acct].deposits++;
+    else if ((t.amount || 0) < 0) byAccountMap[acct].withdrawals++;
+  });
+  const byAccount = Object.entries(byAccountMap)
+    .map(([account, v]) => ({ account, ...v }))
+    .sort((a, b) => Math.abs(b.total_amount) - Math.abs(a.total_amount));
+
   return NextResponse.json({
     total_transactions: total,
     total_amount: totalAmount,
@@ -64,5 +78,6 @@ export async function GET() {
     suspicious_breakdown: suspiciousBreakdown,
     by_category: byCategory,
     by_flag: byFlag,
+    by_account: byAccount,
   });
 }
