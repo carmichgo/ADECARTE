@@ -57,12 +57,12 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCategories = useCallback(async () => {
-    const res = await fetch("/api/categories");
+    const res = await fetch("/api/categories", { cache: "no-store" });
     setCategories(await res.json());
   }, []);
 
   const loadStats = useCallback(async () => {
-    const res = await fetch("/api/stats");
+    const res = await fetch("/api/stats", { cache: "no-store" });
     setStats(await res.json());
   }, []);
 
@@ -75,14 +75,14 @@ export default function Home() {
     if (filters.max) q.set("max_amount", filters.max);
     q.set("order", sort.field);
     if (sort.desc) q.set("desc", "1");
-    const res = await fetch("/api/transactions?" + q.toString());
+    const res = await fetch("/api/transactions?" + q.toString(), { cache: "no-store" });
     const data = await res.json();
     setTransactions(Array.isArray(data) ? data : []);
     setSelectedIds(new Set());
   }, [filters, sort]);
 
   const loadAnalytics = useCallback(async () => {
-    const res = await fetch("/api/analytics");
+    const res = await fetch("/api/analytics", { cache: "no-store" });
     const data = await res.json();
     if (!data.error) {
       setAnalyticsData(data);

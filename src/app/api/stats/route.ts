@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by").limit(10000);
