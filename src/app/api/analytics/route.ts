@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     // ── 2. Balance over time by account ──────────────────────────────
     const accountMap: Record<string, Record<string, number>> = {};
     for (const t of txns) {
-      const acct = t.account_name || t.account || "Unknown";
+      const acct = t.account || t.account_name || "Unknown";
       const d = t.date || "Unknown";
       if (!accountMap[acct]) accountMap[acct] = {};
       if (!accountMap[acct][d]) accountMap[acct][d] = 0;
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     // ── 4. Raw transactions for AI analysis ──────────────────────────
     const rawForAi = txns.map(t => ({
       id: t.id, date: t.date, amount: t.amount, direction: t.direction,
-      account: t.account_name || t.account, description: t.description,
+      account: t.account || t.account_name, description: t.description,
       counterparty: t.counterparty, symbol: t.symbol, security: t.security,
       category: t.category, flag: t.flag, strategy: t.strategy,
     }));

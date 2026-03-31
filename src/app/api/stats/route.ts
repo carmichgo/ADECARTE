@@ -58,7 +58,7 @@ export async function GET() {
   // Group by account
   const byAccountMap: Record<string, { count: number; total_amount: number; deposits: number; withdrawals: number }> = {};
   all.forEach(t => {
-    const acct = t.account_name || t.account || "Unknown";
+    const acct = t.account || t.account_name || "Unknown";
     if (!byAccountMap[acct]) byAccountMap[acct] = { count: 0, total_amount: 0, deposits: 0, withdrawals: 0 };
     byAccountMap[acct].count++;
     byAccountMap[acct].total_amount += t.amount || 0;

@@ -655,7 +655,7 @@ export default function Home() {
                       <td className="px-3 py-2">{t.direction ? <span className={dirColor}>{t.direction}</span> : "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.unit_price ? fmt(t.unit_price) : "-"}</td>
-                      <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
+                      <td className="px-3 py-2">{t.account || t.account_name || "-"}</td>
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.counterparty || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
@@ -748,7 +748,7 @@ export default function Home() {
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
                       <td className="px-3 py-2 max-w-[150px] truncate">{t.security || "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
-                      <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
+                      <td className="px-3 py-2">{t.account || t.account_name || "-"}</td>
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.category}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
