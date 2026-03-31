@@ -36,7 +36,7 @@ export default function Home() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "" });
-  const [sort, setSort] = useState({ field: "date", desc: true });
+  const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
   const [uploadStatus, setUploadStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -68,7 +68,8 @@ export default function Home() {
     q.set("order", sort.field);
     if (sort.desc) q.set("desc", "1");
     const res = await fetch("/api/transactions?" + q.toString());
-    setTransactions(await res.json());
+    const data = await res.json();
+    setTransactions(Array.isArray(data) ? data : []);
     setSelectedIds(new Set());
   }, [filters, sort]);
 
@@ -122,11 +123,12 @@ export default function Home() {
     try {
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
-      if (data.error) setUploadStatus({ type: "error", msg: data.error });
+      if (data.error) setUploadStatus({ type: "error", msg: `Upload failed: ${data.error}` });
       else {
-        setUploadStatus({ type: "success", msg: `${data.message} (Batch: ${data.batch_id})` });
+        setUploadStatus({ type: "success", msg: `${data.message} (Batch: ${data.batch_id}). Switching to Transactions...` });
         loadStats();
         setCsvFile(null); setCsvHeaders([]); setCsvPreview([]);
+        setTimeout(() => setTab("transactions"), 1500);
       }
     } catch (err: any) { setUploadStatus({ type: "error", msg: err.message }); }
   };

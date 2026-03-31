@@ -4,9 +4,13 @@ import { getSupabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { data: all } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by");
+  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by").limit(10000);
 
-  if (!all) return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+  if (error) {
+    console.error("Stats query error:", error);
+    return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_breakdown: [], by_category: [], by_flag: [] });
+  }
+  if (!all) return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_breakdown: [], by_category: [], by_flag: [] });
 
   const total = all.length;
   const totalAmount = all.reduce((s, t) => s + (t.amount || 0), 0);
