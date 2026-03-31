@@ -50,12 +50,23 @@ export async function GET() {
       byDate[d].count++;
     }
 
-    const sortedDates = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+    const sortedDates = Object.values(byDate).sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      if (isNaN(da) && isNaN(db)) return a.date.localeCompare(b.date);
+      if (isNaN(da)) return 1;
+      if (isNaN(db)) return -1;
+      return da - db;
+    });
     let cumBalance = 0;
     const balanceOverTime = sortedDates.map(d => {
       cumBalance += d.net;
+      // Format date for display
+      const parsed = new Date(d.date);
+      const label = isNaN(parsed.getTime()) ? d.date : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
       return {
-        date: d.date,
+        date: label,
+        raw_date: d.date,
         balance: cumBalance,
         inflow: d.inflow,
         outflow: d.outflow,
@@ -77,11 +88,20 @@ export async function GET() {
 
     const balanceByAccount: Record<string, Array<{ date: string; balance: number; daily_net: number }>> = {};
     for (const [acct, dateAmounts] of Object.entries(accountMap)) {
-      const sorted = Object.entries(dateAmounts).sort((a, b) => a[0].localeCompare(b[0]));
+      const sorted = Object.entries(dateAmounts).sort((a, b) => {
+        const da = new Date(a[0]).getTime();
+        const db = new Date(b[0]).getTime();
+        if (isNaN(da) && isNaN(db)) return a[0].localeCompare(b[0]);
+        if (isNaN(da)) return 1;
+        if (isNaN(db)) return -1;
+        return da - db;
+      });
       let cum = 0;
       balanceByAccount[acct] = sorted.map(([date, net]) => {
         cum += net;
-        return { date, balance: cum, daily_net: net };
+        const parsed = new Date(date);
+        const label = isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+        return { date: label, balance: cum, daily_net: net };
       });
     }
 
