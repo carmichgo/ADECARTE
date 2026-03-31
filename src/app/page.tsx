@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Papa from "papaparse";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, BarChart, Bar, Cell
+} from "recharts";
 
-type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious";
+type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
 type Flag = "" | "normal" | "review" | "suspicious" | "critical";
 
 interface Transaction {
@@ -46,6 +50,10 @@ export default function Home() {
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkFlag, setBulkFlag] = useState("");
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [partyLoading, setPartyLoading] = useState(false);
+  const [partyStatus, setPartyStatus] = useState<{ type: string; msg: string } | null>(null);
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCategories = useCallback(async () => {
@@ -73,9 +81,37 @@ export default function Home() {
     setSelectedIds(new Set());
   }, [filters, sort]);
 
+  const loadAnalytics = useCallback(async () => {
+    const res = await fetch("/api/analytics");
+    const data = await res.json();
+    if (!data.error) {
+      setAnalyticsData(data);
+      // Select all accounts by default
+      if (data.balance_by_account) {
+        setSelectedAccounts(new Set(Object.keys(data.balance_by_account)));
+      }
+    }
+  }, []);
+
+  const runPartyExtraction = async () => {
+    setPartyLoading(true);
+    setPartyStatus({ type: "info", msg: "AI is identifying counterparties from descriptions..." });
+    try {
+      const res = await fetch("/api/ai/extract-parties", { method: "POST" });
+      const data = await res.json();
+      if (data.error) setPartyStatus({ type: "error", msg: data.error });
+      else {
+        setPartyStatus({ type: "success", msg: data.message });
+        loadAnalytics();
+      }
+    } catch (err: any) { setPartyStatus({ type: "error", msg: err.message }); }
+    setPartyLoading(false);
+  };
+
   useEffect(() => { loadCategories(); loadStats(); }, [loadCategories, loadStats]);
   useEffect(() => { if (tab === "transactions" || tab === "suspicious") loadTransactions(); }, [tab, loadTransactions]);
   useEffect(() => { if (tab === "dashboard") loadStats(); }, [tab, loadStats]);
+  useEffect(() => { if (tab === "analytics") loadAnalytics(); }, [tab, loadAnalytics]);
 
   // ── Upload ───
   const handleFile = (file: File) => {
@@ -239,7 +275,7 @@ export default function Home() {
           <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Transaction Investigator</span>
         </div>
         <ul className="mt-8 space-y-0.5">
-          {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "All Transactions"], ["categorize", "Categorize"], ["suspicious", "Suspicious Activity"]] as [Tab, string][]).map(([key, label]) => (
+          {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "All Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious Activity"]] as [Tab, string][]).map(([key, label]) => (
             <li key={key}>
               <button onClick={() => setTab(key)}
                 className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${tab === key ? "bg-indigo-500 text-white" : "text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-hover)]"}`}>
@@ -578,6 +614,168 @@ export default function Home() {
                 </div>
               );
             })()}
+          </>
+        )}
+
+        {/* ═══ Analytics ═══ */}
+        {tab === "analytics" && (
+          <>
+            <h2 className="text-2xl font-semibold mb-6">Analytics & Fund Flow</h2>
+
+            {/* AI Party Extraction */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">AI Party Identification</h3>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Use AI to read transaction descriptions and identify who sent or received money.</p>
+                </div>
+                <button onClick={runPartyExtraction} disabled={partyLoading}
+                  className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-md text-sm font-medium whitespace-nowrap">
+                  {partyLoading ? <><span className="spinner mr-2"></span>Running...</> : "Extract Parties"}
+                </button>
+              </div>
+              {partyStatus && <StatusMsg status={partyStatus} />}
+            </div>
+
+            {!analyticsData ? (
+              <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
+            ) : (
+              <>
+                {/* Chart 1: Overall Balance Over Time */}
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-4">Cumulative balance — look for sudden drops indicating fund depletion.</p>
+                  {analyticsData.balance_over_time.length === 0 ? (
+                    <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <LineChart data={analyticsData.balance_over_time}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
+                        <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                        <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                        <Tooltip
+                          contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
+                          formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
+                        <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
+                        <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                {/* Chart 2: Balance Over Time by Account */}
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1">Balance Over Time by Account</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-3">Track individual accounts — identify which account was drained.</p>
+                  {Object.keys(analyticsData.balance_by_account).length === 0 ? (
+                    <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {Object.keys(analyticsData.balance_by_account).map((acct: string, i: number) => {
+                          const colors = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#64748b"];
+                          const color = colors[i % colors.length];
+                          const active = selectedAccounts.has(acct);
+                          return (
+                            <button key={acct}
+                              onClick={() => {
+                                const next = new Set(selectedAccounts);
+                                active ? next.delete(acct) : next.add(acct);
+                                setSelectedAccounts(next);
+                              }}
+                              className={`px-3 py-1 text-xs rounded-full border transition-colors ${active ? "border-transparent text-white" : "border-[var(--border)] text-[var(--text-muted)] opacity-40"}`}
+                              style={active ? { background: color } : {}}>
+                              {acct}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
+                          <XAxis
+                            dataKey="date"
+                            type="category"
+                            allowDuplicatedCategory={false}
+                            tick={{ fill: "#8b8d98", fontSize: 11 }}
+                            angle={-45} textAnchor="end" height={70}
+                          />
+                          <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                          <Tooltip
+                            contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
+                            formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
+                          />
+                          <Legend />
+                          {Object.entries(analyticsData.balance_by_account).map(([acct, points]: [string, any], i: number) => {
+                            const colors = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#64748b"];
+                            if (!selectedAccounts.has(acct)) return null;
+                            return (
+                              <Line key={acct} data={points} type="monotone" dataKey="balance"
+                                stroke={colors[i % colors.length]} strokeWidth={2} dot={false} name={acct} />
+                            );
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </>
+                  )}
+                </div>
+
+                {/* Chart 3: Transaction Counts by Party (Deposits vs Withdrawals) */}
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party — identify repeat patterns.</p>
+                  {analyticsData.transaction_counts.length === 0 ? (
+                    <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available. Run AI Party Identification first.</p>
+                  ) : (
+                    <>
+                      <ResponsiveContainer width="100%" height={Math.max(300, analyticsData.transaction_counts.length * 32)}>
+                        <BarChart data={analyticsData.transaction_counts} layout="vertical" margin={{ left: 150 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
+                          <XAxis type="number" tick={{ fill: "#8b8d98", fontSize: 11 }} />
+                          <YAxis dataKey="party" type="category" tick={{ fill: "#8b8d98", fontSize: 11 }} width={140} />
+                          <Tooltip
+                            contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
+                          />
+                          <Legend />
+                          <Bar dataKey="deposits" fill="#22c55e" name="Deposits (In)" />
+                          <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals (Out)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+
+                      {/* Detail table */}
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="w-full text-sm border border-[var(--border)] rounded-lg">
+                          <thead>
+                            <tr>
+                              {["Party", "Deposits", "Deposit Amount", "Withdrawals", "Withdrawal Amount", "Net"].map(h => (
+                                <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analyticsData.transaction_counts.map((p: any) => (
+                              <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
+                                <td className="px-3 py-2 font-medium">{p.party}</td>
+                                <td className="px-3 py-2 text-green-400">{p.deposits}</td>
+                                <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
+                                <td className="px-3 py-2 text-red-400">{p.withdrawals}</td>
+                                <td className="px-3 py-2 text-red-400 tabular-nums">{fmt(p.withdrawal_amount)}</td>
+                                <td className={`px-3 py-2 font-semibold tabular-nums ${p.deposit_amount - p.withdrawal_amount >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {fmt(p.deposit_amount - p.withdrawal_amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
       </main>
