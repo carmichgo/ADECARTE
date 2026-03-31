@@ -38,7 +38,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "" });
+  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
@@ -172,7 +172,7 @@ export default function Home() {
   // ── Edit ───
   const openEdit = (t: Transaction) => {
     setEditTxn(t);
-    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "" });
+    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "" });
   };
 
   const saveEdit = async () => {
@@ -221,6 +221,14 @@ export default function Home() {
       }
     } catch (err: any) { setAiStatus({ type: "error", msg: err.message }); }
     setAiLoading(false);
+  };
+
+  // ── Expanded rows ───
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const toggleExpand = (id: number) => {
+    const next = new Set(expandedRows);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setExpandedRows(next);
   };
 
   // ── Derived ───
@@ -467,16 +475,35 @@ export default function Home() {
                 <tbody>
                   {transactions.length === 0 ? (
                     <tr><td colSpan={16} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
-                  ) : transactions.map(t => (
-                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
+                  ) : transactions.map(t => {
+                    const dirLower = (t.direction || "").toLowerCase();
+                    const dirColor = dirLower.match(/^(internal|transfer between|internal transfer)/)
+                      ? "text-amber-400 font-semibold"
+                      : dirLower.match(/^(buy|in|incoming|deposit|credit|contribut|receive)/)
+                        ? "text-green-400 font-semibold"
+                        : dirLower ? "text-red-400 font-semibold" : "";
+                    const expanded = expandedRows.has(t.id);
+                    return (
+                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)] align-top">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate" title={t.description}>{t.description || "-"}</td>
+                      <td className="px-3 py-2 min-w-[200px]">
+                        <div className={expanded ? "" : "max-w-[250px] truncate"} title={t.description}>
+                          {t.description || "-"}
+                        </div>
+                        {t.description && t.description.length > 30 && (
+                          <button onClick={() => toggleExpand(t.id)} className="text-[10px] text-indigo-400 hover:underline mt-0.5">
+                            {expanded ? "collapse" : "expand"}
+                          </button>
+                        )}
+                      </td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.settle_date || "-"}</td>
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
-                      <td className="px-3 py-2 max-w-[150px] truncate" title={t.security}>{t.security || "-"}</td>
-                      <td className="px-3 py-2">{t.direction ? <span className={t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{t.direction}</span> : "-"}</td>
+                      <td className="px-3 py-2 min-w-[120px]">
+                        <div className={expanded ? "" : "max-w-[150px] truncate"} title={t.security}>{t.security || "-"}</div>
+                      </td>
+                      <td className="px-3 py-2">{t.direction ? <span className={dirColor}>{t.direction}</span> : "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.unit_price ? fmt(t.unit_price) : "-"}</td>
                       <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
@@ -486,7 +513,8 @@ export default function Home() {
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
                       <td className="px-3 py-2 text-center"><button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-hover)]">Edit</button></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -563,7 +591,10 @@ export default function Home() {
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
-                      <td className="px-3 py-2">{t.direction ? <span className={t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{t.direction}</span> : "-"}</td>
+                      <td className="px-3 py-2">{t.direction ? <span className={
+                        t.direction.toLowerCase().match(/^(internal|transfer between|internal transfer)/) ? "text-amber-400 font-semibold" :
+                        t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit|contribut|receive)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"
+                      }>{t.direction}</span> : "-"}</td>
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
                       <td className="px-3 py-2 max-w-[150px] truncate">{t.security || "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
@@ -785,7 +816,12 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setEditTxn(null)} />
           <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-lg font-semibold mb-4">Edit Transaction</h3>
+            <h3 className="text-lg font-semibold mb-2">Edit Transaction</h3>
+            <div className="text-xs text-[var(--text-muted)] mb-4 p-2 bg-[var(--bg)] rounded border border-[var(--border)]">
+              <div><strong>Date:</strong> {editTxn.date} | <strong>Amount:</strong> {fmt(editTxn.amount)}</div>
+              <div className="mt-1"><strong>Description:</strong> {editTxn.description}</div>
+              {editTxn.security && <div className="mt-1"><strong>Security:</strong> {editTxn.security}</div>}
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Category</label>
@@ -807,6 +843,22 @@ export default function Home() {
                   <option value="">None</option>
                   {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Direction</label>
+                <select className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  value={editForm.direction} onChange={e => setEditForm(p => ({ ...p, direction: e.target.value }))}>
+                  <option value="">Unknown</option>
+                  <option value="Contribution">Contribution (Incoming)</option>
+                  <option value="Withdraw">Withdraw (Outgoing)</option>
+                  <option value="Internal Transfer">Internal Transfer</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Counterparty</label>
+                <input className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  placeholder="Who sent or received the money"
+                  value={editForm.counterparty} onChange={e => setEditForm(p => ({ ...p, counterparty: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Notes</label>

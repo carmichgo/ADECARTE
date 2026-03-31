@@ -59,12 +59,20 @@ export async function POST(req: NextRequest) {
   const fieldMap = fieldMapStr ? JSON.parse(fieldMapStr) : autoMapFields(parsed.meta.fields);
   const batchId = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15);
 
-  const rows = parsed.data.map((row: any) => ({
+  const rows = parsed.data.map((row: any) => {
+    const rawAmount = parseAmount(row[fieldMap.amount] || "");
+    const direction = (row[fieldMap.direction] || "").trim().toLowerCase();
+    // Make amount negative for withdrawals, positive for contributions
+    const isWithdraw = direction.match(/^(withdraw|sell|out|outgoing|debit|payment|disbursement)/);
+    const isContribution = direction.match(/^(contribut|buy|in|incoming|deposit|credit|receive)/);
+    const amount = isWithdraw ? -Math.abs(rawAmount) : isContribution ? Math.abs(rawAmount) : rawAmount;
+
+    return {
     upload_batch: batchId,
     date: (row[fieldMap.date] || "").trim(),
     settle_date: (row[fieldMap.settle_date] || "").trim(),
     description: (row[fieldMap.description] || "").trim(),
-    amount: parseAmount(row[fieldMap.amount] || ""),
+    amount,
     unit_price: parseAmount(row[fieldMap.unit_price] || ""),
     quantity: parseAmount(row[fieldMap.quantity] || ""),
     currency: (row[fieldMap.currency] || "").trim(),
@@ -82,7 +90,8 @@ export async function POST(req: NextRequest) {
     flag: "",
     notes: "",
     categorized_by: "",
-  }));
+  };
+  });
 
   const { error } = await getSupabase().from("transactions").insert(rows);
   if (error) {

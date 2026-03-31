@@ -35,12 +35,15 @@ export async function GET() {
 
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      const isIncoming = dir.match(/^(buy|in|incoming|deposit|credit|receive)/) || amount > 0;
+      const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
 
-      if (isIncoming && amount > 0) {
-        byDate[d].inflow += Math.abs(amount);
-      } else {
-        byDate[d].outflow += Math.abs(amount);
+      // Internal transfers don't count as inflow/outflow
+      if (!isInternal) {
+        if (amount > 0) {
+          byDate[d].inflow += Math.abs(amount);
+        } else if (amount < 0) {
+          byDate[d].outflow += Math.abs(amount);
+        }
       }
       byDate[d].net += amount;
       byDate[d].count++;
@@ -82,23 +85,25 @@ export async function GET() {
     }
 
     // ── 3. Transaction counts by counterparty/description (in vs out) ─
-    const partyCounts: Record<string, { party: string; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number }> = {};
+    const partyCounts: Record<string, { party: string; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number; internal: number; internal_amount: number }> = {};
 
     for (const t of txns) {
-      // Use counterparty if available, else first meaningful part of description
       const party = t.counterparty || extractParty(t.description) || "Unknown";
       if (!partyCounts[party]) {
-        partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0 };
+        partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
       }
 
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      const isIncoming = dir.match(/^(buy|in|incoming|deposit|credit|receive)/) || amount > 0;
+      const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
 
-      if (isIncoming && amount > 0) {
+      if (isInternal) {
+        partyCounts[party].internal++;
+        partyCounts[party].internal_amount += Math.abs(amount);
+      } else if (amount > 0) {
         partyCounts[party].deposits++;
         partyCounts[party].deposit_amount += Math.abs(amount);
-      } else {
+      } else if (amount < 0) {
         partyCounts[party].withdrawals++;
         partyCounts[party].withdrawal_amount += Math.abs(amount);
       }
