@@ -1,20 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const db = getSupabase();
     const { data: txns, error } = await db
       .from("transactions")
-      .select("id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag")
+      .select("id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag, unit_price, quantity, strategy, settle_date")
       .order("date", { ascending: true })
       .limit(10000);
 
     if (error) {
-      console.error("Analytics query error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -23,27 +22,28 @@ export async function GET() {
         balance_over_time: [],
         balance_by_account: {},
         transaction_counts: [],
+        raw_transactions: [],
       });
     }
 
     // ── 1. Overall balance over time ─────────────────────────────────
-    // Group transactions by date, compute cumulative balance
-    const byDate: Record<string, { date: string; inflow: number; outflow: number; net: number; count: number }> = {};
+    const byDate: Record<string, { date: string; raw_date: string; inflow: number; outflow: number; net: number; count: number; withdraw_count: number; withdraw_total: number }> = {};
 
     for (const t of txns) {
       const d = t.date || "Unknown";
-      if (!byDate[d]) byDate[d] = { date: d, inflow: 0, outflow: 0, net: 0, count: 0 };
+      if (!byDate[d]) byDate[d] = { date: d, raw_date: d, inflow: 0, outflow: 0, net: 0, count: 0, withdraw_count: 0, withdraw_total: 0 };
 
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
       const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
 
-      // Internal transfers don't count as inflow/outflow
       if (!isInternal) {
         if (amount > 0) {
           byDate[d].inflow += Math.abs(amount);
         } else if (amount < 0) {
           byDate[d].outflow += Math.abs(amount);
+          byDate[d].withdraw_count++;
+          byDate[d].withdraw_total += Math.abs(amount);
         }
       }
       byDate[d].net += amount;
@@ -52,32 +52,33 @@ export async function GET() {
 
     const sortedDates = Object.values(byDate).sort((a, b) => {
       const da = new Date(a.date).getTime();
-      const db = new Date(b.date).getTime();
-      if (isNaN(da) && isNaN(db)) return a.date.localeCompare(b.date);
+      const dbt = new Date(b.date).getTime();
+      if (isNaN(da) && isNaN(dbt)) return a.date.localeCompare(b.date);
       if (isNaN(da)) return 1;
-      if (isNaN(db)) return -1;
-      return da - db;
+      if (isNaN(dbt)) return -1;
+      return da - dbt;
     });
+
     let cumBalance = 0;
     const balanceOverTime = sortedDates.map(d => {
       cumBalance += d.net;
-      // Format date for display
       const parsed = new Date(d.date);
       const label = isNaN(parsed.getTime()) ? d.date : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
       return {
         date: label,
-        raw_date: d.date,
+        raw_date: d.raw_date,
         balance: cumBalance,
         inflow: d.inflow,
         outflow: d.outflow,
         net: d.net,
         count: d.count,
+        withdraw_count: d.withdraw_count,
+        withdraw_total: d.withdraw_total,
       };
     });
 
     // ── 2. Balance over time by account ──────────────────────────────
     const accountMap: Record<string, Record<string, number>> = {};
-
     for (const t of txns) {
       const acct = t.account_name || t.account || "Unknown";
       const d = t.date || "Unknown";
@@ -90,11 +91,11 @@ export async function GET() {
     for (const [acct, dateAmounts] of Object.entries(accountMap)) {
       const sorted = Object.entries(dateAmounts).sort((a, b) => {
         const da = new Date(a[0]).getTime();
-        const db = new Date(b[0]).getTime();
-        if (isNaN(da) && isNaN(db)) return a[0].localeCompare(b[0]);
+        const dbt = new Date(b[0]).getTime();
+        if (isNaN(da) && isNaN(dbt)) return a[0].localeCompare(b[0]);
         if (isNaN(da)) return 1;
-        if (isNaN(db)) return -1;
-        return da - db;
+        if (isNaN(dbt)) return -1;
+        return da - dbt;
       });
       let cum = 0;
       balanceByAccount[acct] = sorted.map(([date, net]) => {
@@ -105,50 +106,45 @@ export async function GET() {
       });
     }
 
-    // ── 3. Transaction counts by counterparty/description (in vs out) ─
+    // ── 3. Transaction counts by counterparty ────────────────────────
     const partyCounts: Record<string, { party: string; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number; internal: number; internal_amount: number }> = {};
-
     for (const t of txns) {
       const party = t.counterparty || extractParty(t.description) || "Unknown";
       if (!partyCounts[party]) {
         partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
       }
-
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
       const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
-
-      if (isInternal) {
-        partyCounts[party].internal++;
-        partyCounts[party].internal_amount += Math.abs(amount);
-      } else if (amount > 0) {
-        partyCounts[party].deposits++;
-        partyCounts[party].deposit_amount += Math.abs(amount);
-      } else if (amount < 0) {
-        partyCounts[party].withdrawals++;
-        partyCounts[party].withdrawal_amount += Math.abs(amount);
-      }
+      if (isInternal) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
+      else if (amount > 0) { partyCounts[party].deposits++; partyCounts[party].deposit_amount += Math.abs(amount); }
+      else if (amount < 0) { partyCounts[party].withdrawals++; partyCounts[party].withdrawal_amount += Math.abs(amount); }
     }
-
-    // Sort by total transaction count
     const transactionCounts = Object.values(partyCounts)
       .sort((a, b) => (b.deposits + b.withdrawals) - (a.deposits + a.withdrawals))
-      .slice(0, 50); // Top 50
+      .slice(0, 50);
+
+    // ── 4. Raw transactions for AI analysis ──────────────────────────
+    const rawForAi = txns.map(t => ({
+      id: t.id, date: t.date, amount: t.amount, direction: t.direction,
+      account: t.account_name || t.account, description: t.description,
+      counterparty: t.counterparty, symbol: t.symbol, security: t.security,
+      category: t.category, flag: t.flag, strategy: t.strategy,
+    }));
 
     return NextResponse.json({
       balance_over_time: balanceOverTime,
       balance_by_account: balanceByAccount,
       transaction_counts: transactionCounts,
+      raw_transactions: rawForAi,
     });
   } catch (err: any) {
-    console.error("Analytics error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 function extractParty(description: string | null): string {
   if (!description) return "";
-  // Take first 40 chars or up to first common separator
   const cleaned = description.replace(/\s+/g, " ").trim();
   const cut = cleaned.match(/^(.{3,40?})(?:\s*[-|\/\\,;]|\s{2,})/);
   return cut ? cut[1].trim() : cleaned.slice(0, 40).trim();

@@ -61,7 +61,9 @@ For each transaction, extract:
 2. **direction_label**: Whether this was "incoming" (money received/deposited) or "outgoing" (money sent/withdrawn)
 
 ## RULES
-- Look at the description, account, symbol, and any available fields to identify the counterparty
+- Look at the description, account, symbol, security, and any available fields to identify the counterparty
+- IMPORTANT: If description is "-", empty, or generic, use the OTHER fields (symbol, security, account) to identify what this transaction is. For example if symbol is "AAPL" and security is "Apple Inc", this is a stock trade — the counterparty should be the broker/exchange or "Stock Purchase: AAPL"
+- For stock/securities trades: identify as "[Buy/Sell] [Symbol] - [Security Name]" e.g. "Buy AAPL - Apple Inc" as the counterparty
 - Normalize names: "JOHN SMITH WIRE", "J. Smith Transfer", "SMITH JOHN" should all become "John Smith"
 - For bank transfers, try to identify the bank or account holder
 - For trading: the counterparty might be the exchange or broker

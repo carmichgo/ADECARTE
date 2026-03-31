@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Papa from "papaparse";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, BarChart, Bar, Cell
+  ResponsiveContainer, BarChart, Bar, Cell, ReferenceDot, ReferenceArea,
+  ReferenceLine
 } from "recharts";
 
 type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
@@ -59,6 +60,16 @@ export default function Home() {
   const [mergeCanonical, setMergeCanonical] = useState("");
   const [mergeSearch, setMergeSearch] = useState("");
   const [mergeStatus, setMergeStatus] = useState<{ type: string; msg: string } | null>(null);
+  // Cluster detection config
+  const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
+  const [clusterMinAmount, setClusterMinAmount] = useState(10000);
+  const [clusterWindowDays, setClusterWindowDays] = useState(7);
+  // AI Chat
+  const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string; annotations?: any[] }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [aiAnnotations, setAiAnnotations] = useState<any[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCategories = useCallback(async () => {
@@ -171,6 +182,76 @@ export default function Home() {
     setMergeSelected(next);
     // Auto-set canonical to the first selected if not set
     if (!mergeCanonical && next.size > 0) setMergeCanonical([...next][0]);
+  };
+
+  // ── Cluster detection (computed client-side) ───
+  const withdrawalClusters = (() => {
+    if (!analyticsData?.balance_over_time) return [];
+    const data = analyticsData.balance_over_time;
+    const clusters: Array<{ startIdx: number; endIdx: number; count: number; total: number; label: string }> = [];
+
+    for (let i = 0; i < data.length; i++) {
+      // Look ahead within window
+      let windowCount = 0;
+      let windowTotal = 0;
+      let endIdx = i;
+
+      for (let j = i; j < data.length; j++) {
+        const dayDiff = j - i; // approximate: each entry is a date
+        if (dayDiff > clusterWindowDays) break;
+        windowCount += data[j].withdraw_count || 0;
+        windowTotal += data[j].withdraw_total || 0;
+        endIdx = j;
+      }
+
+      if (windowCount >= clusterMinWithdrawals && windowTotal >= clusterMinAmount) {
+        // Avoid overlapping clusters
+        if (clusters.length === 0 || i > clusters[clusters.length - 1].endIdx) {
+          clusters.push({
+            startIdx: i,
+            endIdx,
+            count: windowCount,
+            total: windowTotal,
+            label: `${windowCount} withdrawals, $${windowTotal.toLocaleString()}`,
+          });
+        }
+      }
+    }
+    return clusters;
+  })();
+
+  // ── AI Chat ───
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", text: userMsg }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch("/api/ai/analyze-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          balanceData: analyticsData?.balance_over_time || [],
+          transactionCounts: analyticsData?.transaction_counts || [],
+          rawTransactions: analyticsData?.raw_transactions || [],
+        }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { text: "Error parsing response", annotations: [] }; }
+
+      setChatMessages(prev => [...prev, { role: "ai", text: data.text || "No response", annotations: data.annotations }]);
+      if (data.annotations && data.annotations.length > 0) {
+        setAiAnnotations(prev => [...prev, ...data.annotations]);
+      }
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: "ai", text: "Error: " + err.message }]);
+    }
+    setChatLoading(false);
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
   // ── Upload ───
@@ -774,14 +855,39 @@ export default function Home() {
               <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
             ) : (
               <>
-                {/* Chart 1: Overall Balance Over Time */}
+                {/* Cluster Detection Config */}
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold mb-2 text-sm">Withdrawal Cluster Detection</h3>
+                  <div className="flex flex-wrap gap-4 items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[var(--text-muted)] text-xs">Min withdrawals:</label>
+                      <input type="number" min={1} value={clusterMinWithdrawals} onChange={e => setClusterMinWithdrawals(Number(e.target.value) || 1)}
+                        className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-16 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[var(--text-muted)] text-xs">Min amount ($):</label>
+                      <input type="number" min={0} value={clusterMinAmount} onChange={e => setClusterMinAmount(Number(e.target.value) || 0)}
+                        className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-24 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[var(--text-muted)] text-xs">Window (days):</label>
+                      <input type="number" min={1} value={clusterWindowDays} onChange={e => setClusterWindowDays(Number(e.target.value) || 1)}
+                        className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-16 text-sm" />
+                    </div>
+                    <span className="text-xs text-amber-400 font-medium">
+                      {withdrawalClusters.length} cluster{withdrawalClusters.length !== 1 ? "s" : ""} detected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
-                  <p className="text-xs text-[var(--text-muted)] mb-4">Cumulative balance — look for sudden drops indicating fund depletion.</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-4">Red dots = withdrawal clusters. Orange highlighted zones = AI-flagged regions.</p>
                   {analyticsData.balance_over_time.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
                   ) : (
-                    <ResponsiveContainer width="100%" height={350}>
+                    <ResponsiveContainer width="100%" height={400}>
                       <LineChart data={analyticsData.balance_over_time}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
                         <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
@@ -791,9 +897,45 @@ export default function Home() {
                           formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
                         />
                         <Legend />
+                        {/* AI highlight annotations */}
+                        {aiAnnotations.filter(a => a.chart === "balance" && a.type === "highlight").map((a, i) => (
+                          <ReferenceArea key={`ai-area-${i}`}
+                            x1={analyticsData.balance_over_time[a.dateIndex]?.date}
+                            x2={analyticsData.balance_over_time[a.dateIndexEnd ?? a.dateIndex]?.date}
+                            fill={a.color || "#f97316"} fillOpacity={0.15}
+                            label={{ value: a.label, fill: a.color || "#f97316", fontSize: 10, position: "insideTop" }}
+                          />
+                        ))}
+                        {/* Cluster highlight zones */}
+                        {withdrawalClusters.map((c, i) => (
+                          <ReferenceArea key={`cluster-${i}`}
+                            x1={analyticsData.balance_over_time[c.startIdx]?.date}
+                            x2={analyticsData.balance_over_time[c.endIdx]?.date}
+                            fill="#ef4444" fillOpacity={0.1}
+                            label={{ value: c.label, fill: "#ef4444", fontSize: 9, position: "insideTop" }}
+                          />
+                        ))}
                         <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
                         <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
                         <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
+                        {/* Cluster dots on balance line */}
+                        {withdrawalClusters.map((c, i) => {
+                          const midIdx = Math.floor((c.startIdx + c.endIdx) / 2);
+                          const point = analyticsData.balance_over_time[midIdx];
+                          if (!point) return null;
+                          return <ReferenceDot key={`cdot-${i}`} x={point.date} y={point.balance} r={8} fill="#ef4444" stroke="#fff" strokeWidth={2} />;
+                        })}
+                        {/* AI dot/circle annotations */}
+                        {aiAnnotations.filter(a => a.chart === "balance" && (a.type === "dot" || a.type === "circle" || a.type === "arrow")).map((a, i) => {
+                          const point = analyticsData.balance_over_time[a.dateIndex];
+                          if (!point) return null;
+                          return <ReferenceDot key={`ai-dot-${i}`} x={point.date} y={point.balance}
+                            r={a.type === "circle" ? 12 : 6}
+                            fill={a.type === "circle" ? "transparent" : (a.color || "#f59e0b")}
+                            stroke={a.color || "#f59e0b"} strokeWidth={2}
+                            label={{ value: a.label, fill: a.color || "#f59e0b", fontSize: 9, position: "top" }}
+                          />;
+                        })}
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -814,11 +956,7 @@ export default function Home() {
                           const active = selectedAccounts.has(acct);
                           return (
                             <button key={acct}
-                              onClick={() => {
-                                const next = new Set(selectedAccounts);
-                                active ? next.delete(acct) : next.add(acct);
-                                setSelectedAccounts(next);
-                              }}
+                              onClick={() => { const next = new Set(selectedAccounts); active ? next.delete(acct) : next.add(acct); setSelectedAccounts(next); }}
                               className={`px-3 py-1 text-xs rounded-full border transition-colors ${active ? "border-transparent text-white" : "border-[var(--border)] text-[var(--text-muted)] opacity-40"}`}
                               style={active ? { background: color } : {}}>
                               {acct}
@@ -829,26 +967,14 @@ export default function Home() {
                       <ResponsiveContainer width="100%" height={350}>
                         <LineChart>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                          <XAxis
-                            dataKey="date"
-                            type="category"
-                            allowDuplicatedCategory={false}
-                            tick={{ fill: "#8b8d98", fontSize: 11 }}
-                            angle={-45} textAnchor="end" height={70}
-                          />
+                          <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
                           <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                          <Tooltip
-                            contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
-                            formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
-                          />
+                          <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
                           <Legend />
                           {Object.entries(analyticsData.balance_by_account).map(([acct, points]: [string, any], i: number) => {
                             const colors = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#64748b"];
                             if (!selectedAccounts.has(acct)) return null;
-                            return (
-                              <Line key={acct} data={points} type="monotone" dataKey="balance"
-                                stroke={colors[i % colors.length]} strokeWidth={2} dot={false} name={acct} />
-                            );
+                            return <Line key={acct} data={points} type="monotone" dataKey="balance" stroke={colors[i % colors.length]} strokeWidth={2} dot={false} name={acct} />;
                           })}
                         </LineChart>
                       </ResponsiveContainer>
@@ -856,12 +982,12 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Chart 3: Transaction Counts by Party (Deposits vs Withdrawals) */}
+                {/* Chart 3: Counterparty Breakdown */}
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
                   <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
-                  <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party — identify repeat patterns.</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party.</p>
                   {analyticsData.transaction_counts.length === 0 ? (
-                    <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available. Run AI Party Identification first.</p>
+                    <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
                   ) : (
                     <>
                       <ResponsiveContainer width="100%" height={Math.max(300, analyticsData.transaction_counts.length * 32)}>
@@ -869,25 +995,19 @@ export default function Home() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
                           <XAxis type="number" tick={{ fill: "#8b8d98", fontSize: 11 }} />
                           <YAxis dataKey="party" type="category" tick={{ fill: "#8b8d98", fontSize: 11 }} width={140} />
-                          <Tooltip
-                            contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
-                          />
+                          <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} />
                           <Legend />
                           <Bar dataKey="deposits" fill="#22c55e" name="Deposits (In)" />
                           <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals (Out)" />
                         </BarChart>
                       </ResponsiveContainer>
-
-                      {/* Detail table */}
                       <div className="mt-4 overflow-x-auto">
                         <table className="w-full text-sm border border-[var(--border)] rounded-lg">
-                          <thead>
-                            <tr>
-                              {["Party", "Deposits", "Deposit Amount", "Withdrawals", "Withdrawal Amount", "Net"].map(h => (
-                                <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
+                          <thead><tr>
+                            {["Party", "Deposits", "Deposit Amount", "Withdrawals", "Withdrawal Amount", "Net"].map(h => (
+                              <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
+                            ))}
+                          </tr></thead>
                           <tbody>
                             {analyticsData.transaction_counts.map((p: any) => (
                               <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
@@ -896,9 +1016,7 @@ export default function Home() {
                                 <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
                                 <td className="px-3 py-2 text-red-400">{p.withdrawals}</td>
                                 <td className="px-3 py-2 text-red-400 tabular-nums">{fmt(p.withdrawal_amount)}</td>
-                                <td className={`px-3 py-2 font-semibold tabular-nums ${p.deposit_amount - p.withdrawal_amount >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                  {fmt(p.deposit_amount - p.withdrawal_amount)}
-                                </td>
+                                <td className={`px-3 py-2 font-semibold tabular-nums ${p.deposit_amount - p.withdrawal_amount >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(p.deposit_amount - p.withdrawal_amount)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -906,6 +1024,79 @@ export default function Home() {
                       </div>
                     </>
                   )}
+                </div>
+
+                {/* AI Analytics Chat */}
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold">AI Forensic Analyst</h3>
+                      <p className="text-xs text-[var(--text-muted)]">Ask questions about the data. AI will analyze and annotate the charts.</p>
+                    </div>
+                    {aiAnnotations.length > 0 && (
+                      <button onClick={() => setAiAnnotations([])} className="text-xs text-[var(--text-muted)] hover:text-white px-2 py-1 border border-[var(--border)] rounded">
+                        Clear annotations ({aiAnnotations.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Chat messages */}
+                  <div className="max-h-[400px] overflow-y-auto mb-3 space-y-3 border border-[var(--border)] rounded-lg p-3 bg-[var(--bg)]">
+                    {chatMessages.length === 0 && (
+                      <div className="text-center py-6 space-y-2">
+                        <p className="text-[var(--text-muted)] text-sm">Ask the AI to analyze your transaction data. Examples:</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {["Where do you think fraud started?", "Which counterparties look suspicious?", "Analyze the withdrawal patterns", "When did the balance start dropping?"].map(q => (
+                            <button key={q} onClick={() => { setChatInput(q); }}
+                              className="text-xs px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-full text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors">
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
+                          msg.role === "user"
+                            ? "bg-indigo-500/20 border border-indigo-500/30"
+                            : "bg-[var(--bg-card)] border border-[var(--border)]"
+                        }`}>
+                          <div className="whitespace-pre-wrap">{msg.text}</div>
+                          {msg.annotations && msg.annotations.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-[var(--border)]">
+                              <p className="text-[10px] text-amber-400 font-medium mb-1">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} added to charts</p>
+                              {msg.annotations.map((a: any, j: number) => (
+                                <div key={j} className="text-[10px] text-[var(--text-muted)]">
+                                  <span style={{ color: a.color || "#f59e0b" }}>{a.type}</span>: {a.label} — {a.description}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-4 py-3">
+                          <span className="spinner"></span>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Chat input */}
+                  <div className="flex gap-2">
+                    <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                      placeholder="Ask about the data... e.g. 'Where do you think fraud started?'"
+                      className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm" />
+                    <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+                      className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-lg text-sm font-medium">
+                      Send
+                    </button>
+                  </div>
                 </div>
               </>
             )}
