@@ -745,7 +745,7 @@ export default function Home() {
                       <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
                       <td className="px-3 py-2">{t.direction ? <span className={
-                        t.direction.toLowerCase().match(/^(internal|transfer between|internal transfer)/) ? "text-amber-400 font-semibold" :
+                        t.direction.toLowerCase().match(/internal|transfer between/) ? "text-amber-400 font-semibold" :
                         t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit|contribut|receive)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"
                       }>{t.direction}</span> : "-"}</td>
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>

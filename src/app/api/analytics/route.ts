@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
+      const isInternal = dir.match(/internal|transfer between/);
 
       if (!isInternal) {
         if (amount > 0) {
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       }
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      const isInternal = dir.match(/^(internal|transfer between|internal transfer)/);
+      const isInternal = dir.match(/internal|transfer between/);
       if (isInternal) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
       else if (amount > 0) { partyCounts[party].deposits++; partyCounts[party].deposit_amount += Math.abs(amount); }
       else if (amount < 0) { partyCounts[party].withdrawals++; partyCounts[party].withdrawal_amount += Math.abs(amount); }
