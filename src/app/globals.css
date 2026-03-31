@@ -31,3 +31,14 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
   border: 2px solid var(--border); border-top-color: var(--primary);
   border-radius: 50%; animation: spin 0.6s linear infinite;
 }
+
+/* Prose overrides for AI chat markdown */
+.prose-invert h1, .prose-invert h2, .prose-invert h3, .prose-invert h4 { color: #e4e4e7; }
+.prose-invert p { color: #c4c4c8; }
+.prose-invert li { color: #c4c4c8; }
+.prose-invert blockquote { border-left-color: var(--primary); color: var(--text-muted); }
+.prose-invert pre { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; overflow-x: auto; }
+.prose-invert code { font-size: 0.8em; }
+.prose-invert table { border-collapse: collapse; width: 100%; }
+.prose-invert th, .prose-invert td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+.prose-invert th { background: var(--bg-hover); }

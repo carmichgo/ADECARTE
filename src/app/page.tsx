@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Papa from "papaparse";
+import ReactMarkdown from "react-markdown";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceDot, ReferenceArea,
@@ -66,6 +67,7 @@ export default function Home() {
   const [clusterMinAmount, setClusterMinAmount] = useState(10000);
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
   // AI Chat
+  const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string; annotations?: any[] }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -1046,83 +1048,103 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* AI Analytics Chat */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold">AI Forensic Analyst</h3>
-                      <p className="text-xs text-[var(--text-muted)]">Ask questions about the data. AI will analyze and annotate the charts.</p>
-                    </div>
-                    {aiAnnotations.length > 0 && (
-                      <button onClick={() => setAiAnnotations([])} className="text-xs text-[var(--text-muted)] hover:text-white px-2 py-1 border border-[var(--border)] rounded">
-                        Clear annotations ({aiAnnotations.length})
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Chat messages */}
-                  <div className="max-h-[400px] overflow-y-auto mb-3 space-y-3 border border-[var(--border)] rounded-lg p-3 bg-[var(--bg)]">
-                    {chatMessages.length === 0 && (
-                      <div className="text-center py-6 space-y-2">
-                        <p className="text-[var(--text-muted)] text-sm">Ask the AI to analyze your transaction data. Examples:</p>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {["Where do you think fraud started?", "Which counterparties look suspicious?", "Analyze the withdrawal patterns", "When did the balance start dropping?"].map(q => (
-                            <button key={q} onClick={() => { setChatInput(q); }}
-                              className="text-xs px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-full text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors">
-                              {q}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {chatMessages.map((msg, i) => (
-                      <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
-                          msg.role === "user"
-                            ? "bg-indigo-500/20 border border-indigo-500/30"
-                            : "bg-[var(--bg-card)] border border-[var(--border)]"
-                        }`}>
-                          <div className="whitespace-pre-wrap">{msg.text}</div>
-                          {msg.annotations && msg.annotations.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                              <p className="text-[10px] text-amber-400 font-medium mb-1">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} added to charts</p>
-                              {msg.annotations.map((a: any, j: number) => (
-                                <div key={j} className="text-[10px] text-[var(--text-muted)]">
-                                  <span style={{ color: a.color || "#f59e0b" }}>{a.type}</span>: {a.label} — {a.description}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {chatLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-4 py-3">
-                          <span className="spinner"></span>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  {/* Chat input */}
-                  <div className="flex gap-2">
-                    <input value={chatInput} onChange={e => setChatInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
-                      placeholder="Ask about the data... e.g. 'Where do you think fraud started?'"
-                      className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm" />
-                    <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
-                      className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-lg text-sm font-medium">
-                      Send
-                    </button>
-                  </div>
-                </div>
               </>
             )}
           </>
         )}
       </main>
+
+      {/* AI Chat Toggle Button (fixed) */}
+      <button onClick={() => setChatOpen(!chatOpen)}
+        className={`fixed bottom-6 z-40 px-4 py-3 rounded-full shadow-lg text-sm font-medium transition-all ${
+          chatOpen ? "right-[420px] bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-muted)] hover:text-white" : "right-6 bg-indigo-500 hover:bg-indigo-400 text-white"
+        }`}>
+        {chatOpen ? "Close" : "AI Analyst"}
+        {aiAnnotations.length > 0 && !chatOpen && (
+          <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-[10px] bg-amber-500 text-black rounded-full">{aiAnnotations.length}</span>
+        )}
+      </button>
+
+      {/* AI Chat Sidebar */}
+      <div className={`fixed top-0 right-0 h-full w-[400px] bg-[var(--bg-card)] border-l border-[var(--border)] z-30 flex flex-col transition-transform duration-300 ${chatOpen ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-sm">AI Forensic Analyst</h3>
+            <p className="text-[10px] text-[var(--text-muted)]">Analyzes data & annotates charts</p>
+          </div>
+          <div className="flex gap-2">
+            {aiAnnotations.length > 0 && (
+              <button onClick={() => setAiAnnotations([])} className="text-[10px] text-[var(--text-muted)] hover:text-white px-2 py-1 border border-[var(--border)] rounded">
+                Clear ({aiAnnotations.length})
+              </button>
+            )}
+            <button onClick={() => setChatOpen(false)} className="text-[var(--text-muted)] hover:text-white px-2 py-1 text-lg leading-none">&times;</button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {chatMessages.length === 0 && (
+            <div className="text-center py-8 space-y-3">
+              <p className="text-[var(--text-muted)] text-xs">Ask the AI to analyze your transactions:</p>
+              <div className="flex flex-col gap-2">
+                {["Where do you think fraud started?", "Which counterparties look suspicious?", "Analyze the withdrawal patterns", "When did the balance start dropping?", "Summarize the overall financial picture"].map(q => (
+                  <button key={q} onClick={() => setChatInput(q)}
+                    className="text-xs px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors text-left">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={msg.role === "user" ? "flex justify-end" : ""}>
+              {msg.role === "user" ? (
+                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm max-w-[85%]">
+                  {msg.text}
+                </div>
+              ) : (
+                <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-3 text-sm">
+                  <div className="prose prose-invert prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-400">
+                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  </div>
+                  {msg.annotations && msg.annotations.length > 0 && (
+                    <div className="mt-3 pt-2 border-t border-[var(--border)]">
+                      <p className="text-[10px] text-amber-400 font-medium mb-1">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} added to charts</p>
+                      {msg.annotations.map((a: any, j: number) => (
+                        <div key={j} className="text-[10px] text-[var(--text-muted)] flex gap-1">
+                          <span className="font-medium" style={{ color: a.color || "#f59e0b" }}>{a.type}</span>
+                          <span>{a.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+          {chatLoading && (
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-3">
+              <span className="spinner"></span>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="p-3 border-t border-[var(--border)]">
+          <div className="flex gap-2">
+            <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+              placeholder="Ask about the data..."
+              className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm" />
+            <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-lg text-sm font-medium">
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Edit Modal */}
       {editTxn && (
