@@ -85,12 +85,12 @@ export default function Home() {
       setCsvPreview(parsed.data);
       const map: Record<string, string> = {};
       const patterns: Record<string, string[]> = {
-        date: ["date", "fecha", "transaction date", "posting date", "value date"],
-        description: ["description", "descripcion", "memo", "detail", "narrative", "concepto"],
-        amount: ["amount", "monto", "importe", "value"],
+        date: ["date", "fecha", "transaction date", "posting date", "value date", "trade date", "settle date"],
+        description: ["description", "descripcion", "memo", "detail", "narrative", "concepto", "security", "symbol"],
+        amount: ["amount", "monto", "importe", "value", "unit price"],
         currency: ["currency", "moneda"],
-        account: ["account", "cuenta"],
-        reference: ["reference", "referencia", "ref"],
+        account: ["account", "cuenta", "account name"],
+        reference: ["reference", "referencia", "ref", "strategy", "direction", "quantity"],
         counterparty: ["counterparty", "beneficiary", "beneficiario", "payee", "recipient"],
       };
       const lower: Record<string, string> = {};

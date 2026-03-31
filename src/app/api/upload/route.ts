@@ -3,12 +3,12 @@ import { getSupabase } from "@/lib/supabase";
 import Papa from "papaparse";
 
 const FIELD_PATTERNS: Record<string, string[]> = {
-  date: ["date", "fecha", "transaction date", "trans date", "posting date", "value date"],
-  description: ["description", "descripcion", "memo", "detail", "details", "narrative", "concept", "concepto", "transaction description"],
-  amount: ["amount", "monto", "importe", "value", "sum", "debit", "credit"],
+  date: ["date", "fecha", "transaction date", "trans date", "posting date", "value date", "trade date", "settle date"],
+  description: ["description", "descripcion", "memo", "detail", "details", "narrative", "concept", "concepto", "transaction description", "security", "symbol"],
+  amount: ["amount", "monto", "importe", "value", "sum", "debit", "credit", "unit price"],
   currency: ["currency", "moneda", "ccy"],
-  account: ["account", "cuenta", "account number", "acct"],
-  reference: ["reference", "referencia", "ref", "transaction id", "trans id", "id"],
+  account: ["account", "cuenta", "account number", "acct", "account name"],
+  reference: ["reference", "referencia", "ref", "transaction id", "trans id", "id", "strategy", "direction", "quantity"],
   counterparty: ["counterparty", "beneficiary", "beneficiario", "payee", "recipient", "destinatario", "to", "from"],
 };
 
