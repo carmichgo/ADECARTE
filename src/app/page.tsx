@@ -7,8 +7,10 @@ type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious"
 type Flag = "" | "normal" | "review" | "suspicious" | "critical";
 
 interface Transaction {
-  id: number; date: string; description: string; amount: number;
-  currency: string; account: string; reference: string; counterparty: string;
+  id: number; date: string; settle_date: string; description: string; amount: number;
+  unit_price: number; quantity: number; currency: string; account: string;
+  account_name: string; reference: string; counterparty: string;
+  symbol: string; security: string; strategy: string; direction: string;
   category: string; subcategory: string; flag: string; notes: string;
   categorized_by: string; raw_data: any;
 }
@@ -85,13 +87,21 @@ export default function Home() {
       setCsvPreview(parsed.data);
       const map: Record<string, string> = {};
       const patterns: Record<string, string[]> = {
-        date: ["date", "fecha", "transaction date", "posting date", "value date", "trade date", "settle date"],
-        description: ["description", "descripcion", "memo", "detail", "narrative", "concepto", "security", "symbol"],
-        amount: ["amount", "monto", "importe", "value", "unit price"],
+        date: ["date", "fecha", "transaction date", "posting date", "value date", "trade date"],
+        settle_date: ["settle date", "settlement date"],
+        description: ["description", "descripcion", "memo", "detail", "narrative", "concepto"],
+        amount: ["amount", "monto", "importe", "value"],
+        unit_price: ["unit price", "price", "precio"],
+        quantity: ["quantity", "qty", "shares"],
         currency: ["currency", "moneda"],
-        account: ["account", "cuenta", "account name"],
-        reference: ["reference", "referencia", "ref", "strategy", "direction", "quantity"],
+        account: ["account", "cuenta"],
+        account_name: ["account name"],
+        reference: ["reference", "referencia", "ref"],
         counterparty: ["counterparty", "beneficiary", "beneficiario", "payee", "recipient"],
+        symbol: ["symbol", "ticker"],
+        security: ["security", "instrument", "security name"],
+        strategy: ["strategy"],
+        direction: ["direction", "side", "buy/sell"],
       };
       const lower: Record<string, string> = {};
       (parsed.meta.fields || []).forEach(h => { lower[h.toLowerCase().trim()] = h; });
@@ -330,7 +340,7 @@ export default function Home() {
                 <>
                   <h3 className="font-semibold mb-3">Column Mapping</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {["date", "description", "amount", "currency", "account", "reference", "counterparty"].map(f => (
+                    {["date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "reference", "counterparty", "symbol", "security", "strategy", "direction"].map(f => (
                       <div key={f} className="flex flex-col gap-1">
                         <label className="text-xs text-[var(--text-muted)] capitalize">{f}</label>
                         <select
@@ -394,13 +404,20 @@ export default function Home() {
                 <thead>
                   <tr>
                     <th className="bg-[var(--bg-hover)] px-3 py-2"><input type="checkbox" onChange={toggleAll} checked={selectedIds.size === transactions.length && transactions.length > 0} /></th>
-                    {[["date", "Date"], ["description", "Description"], ["amount", "Amount"]].map(([f, l]) => (
+                    {[["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"]].map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white"
                         onClick={() => handleSort(f)}>
                         {l} {sort.field === f ? (sort.desc ? "↓" : "↑") : ""}
                       </th>
                     ))}
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Counterparty</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Settle Date</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Symbol</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Security</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Direction</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Qty</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Unit Price</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Account</th>
+                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">Strategy</th>
                     <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white" onClick={() => handleSort("category")}>
                       Category {sort.field === "category" ? (sort.desc ? "↓" : "↑") : ""}
                     </th>
@@ -411,14 +428,21 @@ export default function Home() {
                 </thead>
                 <tbody>
                   {transactions.length === 0 ? (
-                    <tr><td colSpan={9} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
+                    <tr><td colSpan={16} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
                   ) : transactions.map(t => (
                     <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
-                      <td className="px-3 py-2 max-w-[250px] truncate" title={t.description}>{t.description || "-"}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate" title={t.description}>{t.description || "-"}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
-                      <td className="px-3 py-2">{t.counterparty || "-"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{t.settle_date || "-"}</td>
+                      <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
+                      <td className="px-3 py-2 max-w-[150px] truncate" title={t.security}>{t.security || "-"}</td>
+                      <td className="px-3 py-2">{t.direction ? <span className={t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{t.direction}</span> : "-"}</td>
+                      <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
+                      <td className="px-3 py-2 tabular-nums">{t.unit_price ? fmt(t.unit_price) : "-"}</td>
+                      <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
+                      <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
@@ -488,20 +512,25 @@ export default function Home() {
               <table className="w-full text-sm border border-[var(--border)] rounded-lg">
                 <thead>
                   <tr>
-                    {["Date", "Description", "Amount", "Counterparty", "Category", "Flag", "AI Notes", "Actions"].map(h => (
+                    {["Date", "Description", "Amount", "Direction", "Symbol", "Security", "Qty", "Account", "Strategy", "Category", "Flag", "AI Notes", "Actions"].map(h => (
                       <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {suspiciousTxns.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center text-[var(--text-muted)] py-8">No suspicious transactions found. Run AI categorization to detect fraud patterns.</td></tr>
+                    <tr><td colSpan={13} className="text-center text-[var(--text-muted)] py-8">No suspicious transactions found. Run AI categorization to detect fraud patterns.</td></tr>
                   ) : suspiciousTxns.map(t => (
                     <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
-                      <td className="px-3 py-2">{t.counterparty || "-"}</td>
+                      <td className="px-3 py-2">{t.direction ? <span className={t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{t.direction}</span> : "-"}</td>
+                      <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
+                      <td className="px-3 py-2 max-w-[150px] truncate">{t.security || "-"}</td>
+                      <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
+                      <td className="px-3 py-2">{t.account_name || t.account || "-"}</td>
+                      <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.category}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2 max-w-[250px] text-xs text-[var(--text-muted)] truncate" title={t.notes}>{t.notes || "-"}</td>

@@ -3,13 +3,21 @@ import { getSupabase } from "@/lib/supabase";
 import Papa from "papaparse";
 
 const FIELD_PATTERNS: Record<string, string[]> = {
-  date: ["date", "fecha", "transaction date", "trans date", "posting date", "value date", "trade date", "settle date"],
-  description: ["description", "descripcion", "memo", "detail", "details", "narrative", "concept", "concepto", "transaction description", "security", "symbol"],
-  amount: ["amount", "monto", "importe", "value", "sum", "debit", "credit", "unit price"],
+  date: ["date", "fecha", "transaction date", "trans date", "posting date", "value date", "trade date"],
+  settle_date: ["settle date", "settlement date", "fecha liquidacion"],
+  description: ["description", "descripcion", "memo", "detail", "details", "narrative", "concept", "concepto", "transaction description"],
+  amount: ["amount", "monto", "importe", "value", "sum", "debit", "credit"],
+  unit_price: ["unit price", "price", "precio", "unit cost"],
+  quantity: ["quantity", "qty", "cantidad", "shares"],
   currency: ["currency", "moneda", "ccy"],
-  account: ["account", "cuenta", "account number", "acct", "account name"],
-  reference: ["reference", "referencia", "ref", "transaction id", "trans id", "id", "strategy", "direction", "quantity"],
+  account: ["account", "cuenta", "account number", "acct"],
+  account_name: ["account name", "nombre cuenta"],
+  reference: ["reference", "referencia", "ref", "transaction id", "trans id", "id"],
   counterparty: ["counterparty", "beneficiary", "beneficiario", "payee", "recipient", "destinatario", "to", "from"],
+  symbol: ["symbol", "ticker", "simbolo"],
+  security: ["security", "instrument", "titulo", "security name"],
+  strategy: ["strategy", "estrategia"],
+  direction: ["direction", "side", "type", "buy/sell", "direccion"],
 };
 
 function autoMapFields(headers: string[]): Record<string, string> {
@@ -54,12 +62,20 @@ export async function POST(req: NextRequest) {
   const rows = parsed.data.map((row: any) => ({
     upload_batch: batchId,
     date: (row[fieldMap.date] || "").trim(),
+    settle_date: (row[fieldMap.settle_date] || "").trim(),
     description: (row[fieldMap.description] || "").trim(),
     amount: parseAmount(row[fieldMap.amount] || ""),
+    unit_price: parseAmount(row[fieldMap.unit_price] || ""),
+    quantity: parseAmount(row[fieldMap.quantity] || ""),
     currency: (row[fieldMap.currency] || "").trim(),
     account: (row[fieldMap.account] || "").trim(),
+    account_name: (row[fieldMap.account_name] || "").trim(),
     reference: (row[fieldMap.reference] || "").trim(),
     counterparty: (row[fieldMap.counterparty] || "").trim(),
+    symbol: (row[fieldMap.symbol] || "").trim(),
+    security: (row[fieldMap.security] || "").trim(),
+    strategy: (row[fieldMap.strategy] || "").trim(),
+    direction: (row[fieldMap.direction] || "").trim(),
     raw_data: row,
     category: "",
     subcategory: "",

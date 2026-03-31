@@ -4,12 +4,20 @@ CREATE TABLE IF NOT EXISTS transactions (
     id BIGSERIAL PRIMARY KEY,
     upload_batch TEXT,
     date TEXT,
+    settle_date TEXT DEFAULT '',
     description TEXT,
     amount DOUBLE PRECISION,
+    unit_price DOUBLE PRECISION DEFAULT 0,
+    quantity DOUBLE PRECISION DEFAULT 0,
     currency TEXT DEFAULT '',
     account TEXT DEFAULT '',
+    account_name TEXT DEFAULT '',
     reference TEXT DEFAULT '',
     counterparty TEXT DEFAULT '',
+    symbol TEXT DEFAULT '',
+    security TEXT DEFAULT '',
+    strategy TEXT DEFAULT '',
+    direction TEXT DEFAULT '',
     raw_data JSONB,
     category TEXT DEFAULT '',
     subcategory TEXT DEFAULT '',
@@ -56,3 +64,5 @@ CREATE INDEX IF NOT EXISTS idx_transactions_flag ON transactions(flag);
 CREATE INDEX IF NOT EXISTS idx_transactions_categorized_by ON transactions(categorized_by);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_upload_batch ON transactions(upload_batch);
+CREATE INDEX IF NOT EXISTS idx_transactions_symbol ON transactions(symbol);
+CREATE INDEX IF NOT EXISTS idx_transactions_strategy ON transactions(strategy);

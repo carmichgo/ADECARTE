@@ -12,9 +12,10 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const headers = [
-    "id", "date", "description", "amount", "currency", "account",
-    "reference", "counterparty", "category", "subcategory", "flag",
-    "notes", "categorized_by",
+    "id", "date", "settle_date", "description", "amount", "unit_price",
+    "quantity", "currency", "account", "account_name", "reference",
+    "counterparty", "symbol", "security", "strategy", "direction",
+    "category", "subcategory", "flag", "notes", "categorized_by",
   ];
 
   const csvRows = [headers.join(",")];
