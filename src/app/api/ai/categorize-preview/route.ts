@@ -23,14 +23,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Need at least 1 manually categorized transaction as example." }, { status: 400 });
   }
 
-  // Get uncategorized
-  const { data: uncategorized } = await db
+  // Get uncategorized — try multiple approaches
+  const { data: uncatEmpty } = await db
     .from("transactions")
     .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
-    .or("category.eq.,category.is.null")
+    .eq("category", "")
     .limit(100);
 
-  if (!uncategorized || uncategorized.length === 0) {
+  const { data: uncatNull } = await db
+    .from("transactions")
+    .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
+    .is("category", null)
+    .limit(100);
+
+  // Also get ones where categorized_by is empty (never been categorized)
+  const { data: uncatNever } = await db
+    .from("transactions")
+    .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
+    .or("categorized_by.eq.,categorized_by.is.null")
+    .limit(100);
+
+  // Merge and deduplicate
+  const seenIds = new Set<number>();
+  const uncategorized: any[] = [];
+  for (const list of [uncatEmpty, uncatNull, uncatNever]) {
+    for (const t of list || []) {
+      if (!seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        uncategorized.push(t);
+      }
+    }
+  }
+
+  if (uncategorized.length === 0) {
     return NextResponse.json({ message: "All transactions are already categorized", preview: [] });
   }
 

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (p.get("category")) query = query.eq("category", p.get("category")!);
     if (p.get("flag")) query = query.eq("flag", p.get("flag")!);
     if (p.get("categorized_by")) query = query.eq("categorized_by", p.get("categorized_by")!);
-    if (p.get("uncategorized")) query = query.or("category.eq.,category.is.null");
+    if (p.get("uncategorized")) query = query.or("category.eq.,category.is.null,categorized_by.eq.,categorized_by.is.null");
     if (p.get("search")) {
       const s = `%${p.get("search")}%`;
       query = query.or(`description.ilike.${s},counterparty.ilike.${s},notes.ilike.${s},reference.ilike.${s}`);

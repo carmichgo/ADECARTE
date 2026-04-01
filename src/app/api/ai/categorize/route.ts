@@ -28,10 +28,15 @@ export async function POST(req: Request) {
     }, { status: 400 });
   }
 
-  const { data: uncategorized } = await db
-    .from("transactions")
-    .select("id, description, amount, counterparty, reference, date, raw_data")
-    .or("category.eq.,category.is.null");
+  // Get uncategorized: empty category, null category, or never categorized
+  const { data: uc1 } = await db.from("transactions").select("id, description, amount, counterparty, reference, date, raw_data").eq("category", "");
+  const { data: uc2 } = await db.from("transactions").select("id, description, amount, counterparty, reference, date, raw_data").is("category", null);
+  const { data: uc3 } = await db.from("transactions").select("id, description, amount, counterparty, reference, date, raw_data").or("categorized_by.eq.,categorized_by.is.null");
+  const ucIds = new Set<number>();
+  const uncategorized: any[] = [];
+  for (const list of [uc1, uc2, uc3]) {
+    for (const t of list || []) { if (!ucIds.has(t.id)) { ucIds.add(t.id); uncategorized.push(t); } }
+  }
 
   if (!uncategorized || uncategorized.length === 0) {
     return NextResponse.json({ message: "All transactions are already categorized", categorized: 0 });
