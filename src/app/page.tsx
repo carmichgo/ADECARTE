@@ -1375,64 +1375,46 @@ export default function Home() {
                     const end = brushRange?.end ?? raw.length - 1;
                     const visibleCount = end - start + 1;
 
-                    // Determine granularity based on visible points
-                    let granularity: "day" | "week" | "month" | "year" = "day";
+                    let granularity = "day";
                     if (visibleCount > 730) granularity = "year";
                     else if (visibleCount > 180) granularity = "month";
                     else if (visibleCount > 60) granularity = "week";
 
-                    // Aggregate data
-                    const getGroupKey = (rawDate: string, gran: string): string => {
-                      const d = new Date(rawDate);
-                      if (isNaN(d.getTime())) return rawDate;
-                      if (gran === "year") return d.getFullYear().toString();
-                      if (gran === "month") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-                      if (gran === "week") {
-                        const weekStart = new Date(d);
-                        weekStart.setDate(d.getDate() - d.getDay());
-                        return `W ${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}`;
-                      }
-                      return rawDate; // day — use existing label
+                    // Only change X-axis tick labels, data stays as daily
+                    const formatTick = (dateLabel: string) => {
+                      const point = raw.find((d: any) => d.date === dateLabel);
+                      const rd = point?.raw_date || dateLabel;
+                      const d = new Date(rd);
+                      if (isNaN(d.getTime())) return dateLabel;
+                      if (granularity === "year") return d.getFullYear().toString();
+                      if (granularity === "month") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+                      if (granularity === "week") return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                      return dateLabel;
                     };
 
-                    let chartData: any[];
-                    if (granularity === "day") {
-                      chartData = raw;
-                    } else {
-                      const groups: Record<string, { date: string; balance: number; inflow: number; outflow: number; withdraw_count: number; withdraw_total: number; count: number; raw_date: string }> = {};
-                      for (const d of raw) {
-                        const key = getGroupKey(d.raw_date, granularity);
-                        if (!groups[key]) {
-                          groups[key] = { date: key, balance: d.balance, inflow: 0, outflow: 0, withdraw_count: 0, withdraw_total: 0, count: 0, raw_date: d.raw_date };
-                        }
-                        groups[key].balance = d.balance; // last balance in period
-                        groups[key].inflow += d.inflow || 0;
-                        groups[key].outflow += d.outflow || 0;
-                        groups[key].withdraw_count += d.withdraw_count || 0;
-                        groups[key].withdraw_total += d.withdraw_total || 0;
-                        groups[key].count += d.count || 0;
-                        groups[key].raw_date = d.raw_date;
-                      }
-                      chartData = Object.values(groups);
-                    }
+                    // Thin out ticks so they don't overlap
+                    const tickInterval = granularity === "year" ? 365 : granularity === "month" ? 30 : granularity === "week" ? 7 : 0;
 
                     return (
                       <>
-                        <div className="flex items-center gap-3 mb-4">
-                          <p className="text-xs text-[var(--text-muted)]">
-                            Showing <span className="text-[var(--text)] font-medium">{granularity}</span> view
-                            ({visibleCount} data points visible). Zoom in with the brush below to see finer detail.
-                          </p>
-                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mb-4">
+                          Viewing <span className="text-[var(--text)] font-medium">{granularity}</span> labels
+                          &middot; {visibleCount} days visible &middot; Drag brush handles to zoom, hover for daily detail
+                        </p>
                         <ResponsiveContainer width="100%" height={480}>
-                          <LineChart data={chartData}>
+                          <LineChart data={raw}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
-                            <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                            <XAxis dataKey="date"
+                              tick={{ fill: "#71717a", fontSize: 11 }}
+                              angle={-45} textAnchor="end" height={70}
+                              tickFormatter={formatTick}
+                              interval={tickInterval || "preserveStartEnd"}
+                              minTickGap={40}
+                            />
                             <YAxis tick={{ fill: "#71717a", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
                             <Tooltip
                               contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
                               formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
-                              labelFormatter={(label: any) => granularity !== "day" ? `${granularity}: ${label}` : label}
                             />
                             <Legend />
                             {/* AI highlight annotations */}
@@ -1454,8 +1436,8 @@ export default function Home() {
                               />
                             ))}
                             <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
-                            <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name={granularity === "day" ? "Daily Inflow" : `${granularity} Inflow`} />
-                            <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name={granularity === "day" ? "Daily Outflow" : `${granularity} Outflow`} />
+                            <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
+                            <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
                             <Brush dataKey="date" height={30} stroke="#6366f1" fill="#111113" travellerWidth={10}
                               onChange={(range: any) => {
                                 if (range && typeof range.startIndex === "number") {
