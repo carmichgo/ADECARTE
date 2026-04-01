@@ -13,27 +13,30 @@ export async function GET() {
   }
   if (!all) return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_breakdown: [], by_category: [], by_flag: [] });
 
-  const total = all.length;
-  const totalAmount = all.reduce((s, t) => s + (t.amount || 0), 0);
-  const totalDeposits = all.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0);
-  const totalWithdrawals = all.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const depositCount = all.filter(t => (t.amount || 0) > 0).length;
-  const withdrawalCount = all.filter(t => (t.amount || 0) < 0).length;
-  const categorized = all.filter(t => t.category && t.category !== "").length;
+  // Exclude disqualified from all stats
+  const active = all.filter(t => t.flag !== "disqualified");
+  const total = active.length;
+  const totalAmount = active.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalDeposits = active.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0);
+  const totalWithdrawals = active.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const depositCount = active.filter(t => (t.amount || 0) > 0).length;
+  const withdrawalCount = active.filter(t => (t.amount || 0) < 0).length;
+  const categorized = active.filter(t => t.category && t.category !== "").length;
   const uncategorized = total - categorized;
+  const disqualifiedCount = all.filter(t => t.flag === "disqualified").length;
 
-  const suspiciousItems = all.filter(t =>
+  const suspiciousItems = active.filter(t =>
     t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
   );
   const suspiciousAmount = suspiciousItems.reduce((s, t) => s + (t.amount || 0), 0);
 
-  const verifiedFraudItems = all.filter(t => t.flag === "verified_fraud");
+  const verifiedFraudItems = active.filter(t => t.flag === "verified_fraud");
   const verifiedFraudAmount = verifiedFraudItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
   const verifiedFraudCount = verifiedFraudItems.length;
 
   // Group by category
   const byCategoryMap: Record<string, { count: number; total_amount: number }> = {};
-  all.forEach(t => {
+  active.forEach(t => {
     if (!t.category) return;
     if (!byCategoryMap[t.category]) byCategoryMap[t.category] = { count: 0, total_amount: 0 };
     byCategoryMap[t.category].count++;
@@ -45,7 +48,7 @@ export async function GET() {
 
   // Group by flag
   const byFlagMap: Record<string, { count: number; total_amount: number }> = {};
-  all.forEach(t => {
+  active.forEach(t => {
     if (!t.flag) return;
     if (!byFlagMap[t.flag]) byFlagMap[t.flag] = { count: 0, total_amount: 0 };
     byFlagMap[t.flag].count++;
@@ -65,7 +68,7 @@ export async function GET() {
 
   // Group by account
   const byAccountMap: Record<string, { count: number; total_amount: number; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number }> = {};
-  all.forEach(t => {
+  active.forEach(t => {
     const acct = t.account || t.account_name || "Unknown";
     if (!byAccountMap[acct]) byAccountMap[acct] = { count: 0, total_amount: 0, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0 };
     byAccountMap[acct].count++;

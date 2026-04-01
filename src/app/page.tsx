@@ -10,7 +10,7 @@ import {
 } from "recharts";
 
 type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
-type Flag = "" | "normal" | "review" | "suspicious" | "critical" | "verified_fraud";
+type Flag = "" | "normal" | "review" | "suspicious" | "critical" | "verified_fraud" | "disqualified";
 
 interface Transaction {
   id: number; date: string; settle_date: string; description: string; amount: number;
@@ -251,11 +251,13 @@ export default function Home() {
 
   // Recompute balance data when categories are excluded
   const filteredBalanceData = (() => {
-    if (!analyticsData?.raw_transactions || excludedCategories.size === 0) {
+    if (!analyticsData?.raw_transactions) return analyticsData?.balance_over_time || [];
+    // Always filter out disqualified, plus any excluded categories
+    const hasDisqualified = analyticsData.raw_transactions.some((t: any) => t.flag === "disqualified");
+    if (!hasDisqualified && excludedCategories.size === 0) {
       return analyticsData?.balance_over_time || [];
     }
-    // Recompute from raw transactions excluding certain categories
-    const txns = analyticsData.raw_transactions.filter((t: any) => !excludedCategories.has(t.category || ""));
+    const txns = analyticsData.raw_transactions.filter((t: any) => t.flag !== "disqualified" && !excludedCategories.has(t.category || ""));
     const byDate: Record<string, { date: string; raw_date: string; inflow: number; outflow: number; net: number; count: number; withdraw_count: number; withdraw_total: number }> = {};
     for (const t of txns) {
       const d = t.date || "Unknown";
@@ -280,11 +282,12 @@ export default function Home() {
 
   // Filtered counterparty data
   const filteredTransactionCounts = (() => {
-    if (!analyticsData?.transaction_counts || excludedCategories.size === 0) {
+    if (!analyticsData?.raw_transactions) return analyticsData?.transaction_counts || [];
+    const hasDisqualified = analyticsData.raw_transactions.some((t: any) => t.flag === "disqualified");
+    if (!hasDisqualified && excludedCategories.size === 0) {
       return analyticsData?.transaction_counts || [];
     }
-    // Recompute from raw
-    const txns = analyticsData.raw_transactions.filter((t: any) => !excludedCategories.has(t.category || ""));
+    const txns = analyticsData.raw_transactions.filter((t: any) => t.flag !== "disqualified" && !excludedCategories.has(t.category || ""));
     const partyCounts: Record<string, any> = {};
     for (const t of txns) {
       const party = t.counterparty || "Unknown";
@@ -660,8 +663,10 @@ export default function Home() {
       suspicious: "bg-orange-50 text-orange-700 border border-orange-200",
       critical: "bg-red-50 text-red-700 border border-red-200",
       verified_fraud: "bg-red-600 text-white border border-red-600",
+      disqualified: "bg-gray-100 text-gray-400 border border-gray-200 line-through",
     };
-    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[flag] || ""}`}>{flag === "verified_fraud" ? "FRAUD" : flag}</span>;
+    const label = flag === "verified_fraud" ? "FRAUD" : flag === "disqualified" ? "DISQUALIFIED" : flag;
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[flag] || ""}`}>{label}</span>;
   };
 
   const SourceBadge = ({ src }: { src: string }) => {
@@ -943,9 +948,10 @@ export default function Home() {
 
             {/* KPIs for currently displayed transactions */}
             {transactions.length > 0 && (() => {
-              const deposits = transactions.filter(t => t.amount > 0);
-              const withdrawals = transactions.filter(t => t.amount < 0);
-              const suspicious = transactions.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
+              const active = transactions.filter(t => t.flag !== "disqualified");
+              const deposits = active.filter(t => t.amount > 0);
+              const withdrawals = active.filter(t => t.amount < 0);
+              const suspicious = active.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
               const uncategorized = transactions.filter(t => !t.category);
               const totalDeposits = deposits.reduce((s, t) => s + t.amount, 0);
               const totalWithdrawals = withdrawals.reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -982,7 +988,7 @@ export default function Home() {
               <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
                 value={filters.flag} onChange={e => setFilters(p => ({ ...p, flag: e.target.value }))}>
                 <option value="">All Flags</option>
-                {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f}</option>)}
+                {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f === "disqualified" ? "Disqualified" : f}</option>)}
               </select>
               <input type="number" placeholder="Min $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
@@ -1001,7 +1007,7 @@ export default function Home() {
                 </select>
                 <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)]" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
                   <option value="">Set Flag...</option>
-                  {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
+                  {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f === "disqualified" ? "DISQUALIFIED" : f}</option>)}
                 </select>
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
@@ -1048,7 +1054,7 @@ export default function Home() {
                         : dirLower ? "text-red-600 font-semibold" : "";
                     const expanded = expandedRows.has(t.id);
                     return (
-                    <tr key={t.id} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] align-top">
+                    <tr key={t.id} className={`hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] align-top ${t.flag === "disqualified" ? "opacity-40" : ""}`}>
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 min-w-[200px]">
@@ -2152,7 +2158,7 @@ export default function Home() {
                 <select className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   value={editForm.flag} onChange={e => setEditForm(p => ({ ...p, flag: e.target.value }))}>
                   <option value="">None</option>
-                  {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
+                  {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f === "disqualified" ? "DISQUALIFIED" : f}</option>)}
                 </select>
               </div>
               <div>

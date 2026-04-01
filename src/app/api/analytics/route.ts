@@ -26,10 +26,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Exclude disqualified from all analytics
+    const activeTxns = txns.filter(t => t.flag !== "disqualified");
+
     // ── 1. Overall balance over time ─────────────────────────────────
     const byDate: Record<string, { date: string; raw_date: string; inflow: number; outflow: number; net: number; count: number; withdraw_count: number; withdraw_total: number }> = {};
 
-    for (const t of txns) {
+    for (const t of activeTxns) {
       const d = t.date || "Unknown";
       if (!byDate[d]) byDate[d] = { date: d, raw_date: d, inflow: 0, outflow: 0, net: 0, count: 0, withdraw_count: 0, withdraw_total: 0 };
 
@@ -79,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     // ── 2. Balance over time by account ──────────────────────────────
     const accountMap: Record<string, Record<string, number>> = {};
-    for (const t of txns) {
+    for (const t of activeTxns) {
       if (isInternalTransfer(t)) continue;
       const acct = t.account || t.account_name || "Unknown";
       const d = t.date || "Unknown";
@@ -109,7 +112,7 @@ export async function GET(req: NextRequest) {
 
     // ── 3. Transaction counts by counterparty ────────────────────────
     const partyCounts: Record<string, { party: string; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number; internal: number; internal_amount: number }> = {};
-    for (const t of txns) {
+    for (const t of activeTxns) {
       const party = t.counterparty || extractParty(t.description) || "Unknown";
       if (!partyCounts[party]) {
         partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
