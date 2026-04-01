@@ -473,11 +473,16 @@ export default function Home() {
 
   const saveEdit = async () => {
     if (!editTxn) return;
-    await fetch(`/api/transactions/${editTxn.id}`, {
+    const res = await fetch(`/api/transactions/${editTxn.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
     });
+    const result = await res.json();
+    if (result.error) {
+      alert("Save failed: " + result.error);
+      return;
+    }
     setEditTxn(null);
     loadTransactions();
     loadStats();
