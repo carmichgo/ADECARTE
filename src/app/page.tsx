@@ -77,6 +77,7 @@ export default function Home() {
   const [autoMergeLoading, setAutoMergeLoading] = useState(false);
   const [autoMergePreview, setAutoMergePreview] = useState<any[] | null>(null);
   const [partySort, setPartySort] = useState<{ field: string; desc: boolean }>({ field: "deposits", desc: true });
+  const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -1366,64 +1367,125 @@ export default function Home() {
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
                 <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
-                  <p className="text-xs text-[var(--text-muted)] mb-4">Red dots = withdrawal clusters. Orange highlighted zones = AI-flagged regions.</p>
                   {analyticsData.balance_over_time.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={480}>
-                      <LineChart data={analyticsData.balance_over_time}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                        <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                        <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                        <Tooltip
-                          contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
-                          formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
-                        />
-                        <Legend />
-                        {/* AI highlight annotations */}
-                        {aiAnnotations.filter(a => a.chart === "balance" && a.type === "highlight").map((a, i) => (
-                          <ReferenceArea key={`ai-area-${i}`}
-                            x1={analyticsData.balance_over_time[a.dateIndex]?.date}
-                            x2={analyticsData.balance_over_time[a.dateIndexEnd ?? a.dateIndex]?.date}
-                            fill={a.color || "#f97316"} fillOpacity={0.15}
-                            label={{ value: a.label, fill: a.color || "#f97316", fontSize: 10, position: "insideTop" }}
-                          />
-                        ))}
-                        {/* Cluster highlight zones */}
-                        {showClusters && withdrawalClusters.map((c, i) => (
-                          <ReferenceArea key={`cluster-${i}`}
-                            x1={analyticsData.balance_over_time[c.startIdx]?.date}
-                            x2={analyticsData.balance_over_time[c.endIdx]?.date}
-                            fill="#ef4444" fillOpacity={0.1}
-                            label={{ value: c.label, fill: "#ef4444", fontSize: 9, position: "insideTop" }}
-                          />
-                        ))}
-                        <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
-                        <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
-                        <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
-                        <Brush dataKey="date" height={30} stroke="#6366f1" fill="#1a1d27" travellerWidth={10}
-                          startIndex={0} endIndex={Math.min(analyticsData.balance_over_time.length - 1, analyticsData.balance_over_time.length - 1)} />
-                        {/* Cluster dots on balance line */}
-                        {showClusters && withdrawalClusters.map((c, i) => {
-                          const midIdx = Math.floor((c.startIdx + c.endIdx) / 2);
-                          const point = analyticsData.balance_over_time[midIdx];
-                          if (!point) return null;
-                          return <ReferenceDot key={`cdot-${i}`} x={point.date} y={point.balance} r={8} fill="#ef4444" stroke="#fff" strokeWidth={2} />;
-                        })}
-                        {/* AI dot/circle annotations */}
-                        {aiAnnotations.filter(a => a.chart === "balance" && (a.type === "dot" || a.type === "circle" || a.type === "arrow")).map((a, i) => {
-                          const point = analyticsData.balance_over_time[a.dateIndex];
-                          if (!point) return null;
-                          return <ReferenceDot key={`ai-dot-${i}`} x={point.date} y={point.balance}
-                            r={a.type === "circle" ? 12 : 6}
-                            fill={a.type === "circle" ? "transparent" : (a.color || "#f59e0b")}
-                            stroke={a.color || "#f59e0b"} strokeWidth={2}
-                            label={{ value: a.label, fill: a.color || "#f59e0b", fontSize: 9, position: "top" }}
-                          />;
-                        })}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  )}
+                  ) : (() => {
+                    const raw = analyticsData.balance_over_time;
+                    const start = brushRange?.start ?? 0;
+                    const end = brushRange?.end ?? raw.length - 1;
+                    const visibleCount = end - start + 1;
+
+                    // Determine granularity based on visible points
+                    let granularity: "day" | "week" | "month" | "year" = "day";
+                    if (visibleCount > 730) granularity = "year";
+                    else if (visibleCount > 180) granularity = "month";
+                    else if (visibleCount > 60) granularity = "week";
+
+                    // Aggregate data
+                    const getGroupKey = (rawDate: string, gran: string): string => {
+                      const d = new Date(rawDate);
+                      if (isNaN(d.getTime())) return rawDate;
+                      if (gran === "year") return d.getFullYear().toString();
+                      if (gran === "month") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+                      if (gran === "week") {
+                        const weekStart = new Date(d);
+                        weekStart.setDate(d.getDate() - d.getDay());
+                        return `W ${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}`;
+                      }
+                      return rawDate; // day — use existing label
+                    };
+
+                    let chartData: any[];
+                    if (granularity === "day") {
+                      chartData = raw;
+                    } else {
+                      const groups: Record<string, { date: string; balance: number; inflow: number; outflow: number; withdraw_count: number; withdraw_total: number; count: number; raw_date: string }> = {};
+                      for (const d of raw) {
+                        const key = getGroupKey(d.raw_date, granularity);
+                        if (!groups[key]) {
+                          groups[key] = { date: key, balance: d.balance, inflow: 0, outflow: 0, withdraw_count: 0, withdraw_total: 0, count: 0, raw_date: d.raw_date };
+                        }
+                        groups[key].balance = d.balance; // last balance in period
+                        groups[key].inflow += d.inflow || 0;
+                        groups[key].outflow += d.outflow || 0;
+                        groups[key].withdraw_count += d.withdraw_count || 0;
+                        groups[key].withdraw_total += d.withdraw_total || 0;
+                        groups[key].count += d.count || 0;
+                        groups[key].raw_date = d.raw_date;
+                      }
+                      chartData = Object.values(groups);
+                    }
+
+                    return (
+                      <>
+                        <div className="flex items-center gap-3 mb-4">
+                          <p className="text-xs text-[var(--text-muted)]">
+                            Showing <span className="text-[var(--text)] font-medium">{granularity}</span> view
+                            ({visibleCount} data points visible). Zoom in with the brush below to see finer detail.
+                          </p>
+                        </div>
+                        <ResponsiveContainer width="100%" height={480}>
+                          <LineChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
+                            <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                            <YAxis tick={{ fill: "#71717a", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip
+                              contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+                              formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
+                              labelFormatter={(label: any) => granularity !== "day" ? `${granularity}: ${label}` : label}
+                            />
+                            <Legend />
+                            {/* AI highlight annotations */}
+                            {aiAnnotations.filter(a => a.chart === "balance" && a.type === "highlight").map((a, i) => (
+                              <ReferenceArea key={`ai-area-${i}`}
+                                x1={raw[a.dateIndex]?.date}
+                                x2={raw[a.dateIndexEnd ?? a.dateIndex]?.date}
+                                fill={a.color || "#f97316"} fillOpacity={0.15}
+                                label={{ value: a.label, fill: a.color || "#f97316", fontSize: 10, position: "insideTop" }}
+                              />
+                            ))}
+                            {/* Cluster highlight zones */}
+                            {showClusters && withdrawalClusters.map((c, i) => (
+                              <ReferenceArea key={`cluster-${i}`}
+                                x1={raw[c.startIdx]?.date}
+                                x2={raw[c.endIdx]?.date}
+                                fill="#ef4444" fillOpacity={0.1}
+                                label={{ value: c.label, fill: "#ef4444", fontSize: 9, position: "insideTop" }}
+                              />
+                            ))}
+                            <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
+                            <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name={granularity === "day" ? "Daily Inflow" : `${granularity} Inflow`} />
+                            <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name={granularity === "day" ? "Daily Outflow" : `${granularity} Outflow`} />
+                            <Brush dataKey="date" height={30} stroke="#6366f1" fill="#111113" travellerWidth={10}
+                              onChange={(range: any) => {
+                                if (range && typeof range.startIndex === "number") {
+                                  setBrushRange({ start: range.startIndex, end: range.endIndex });
+                                }
+                              }}
+                            />
+                            {/* Cluster dots on balance line */}
+                            {showClusters && withdrawalClusters.map((c, i) => {
+                              const midIdx = Math.floor((c.startIdx + c.endIdx) / 2);
+                              const point = raw[midIdx];
+                              if (!point) return null;
+                              return <ReferenceDot key={`cdot-${i}`} x={point.date} y={point.balance} r={8} fill="#ef4444" stroke="#fff" strokeWidth={2} />;
+                            })}
+                            {/* AI dot/circle annotations */}
+                            {aiAnnotations.filter(a => a.chart === "balance" && (a.type === "dot" || a.type === "circle" || a.type === "arrow")).map((a, i) => {
+                              const point = raw[a.dateIndex];
+                              if (!point) return null;
+                              return <ReferenceDot key={`ai-dot-${i}`} x={point.date} y={point.balance}
+                                r={a.type === "circle" ? 12 : 6}
+                                fill={a.type === "circle" ? "transparent" : (a.color || "#f59e0b")}
+                                stroke={a.color || "#f59e0b"} strokeWidth={2}
+                                label={{ value: a.label, fill: a.color || "#f59e0b", fontSize: 9, position: "top" }}
+                              />;
+                            })}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Chart 2: Balance Over Time by Account */}
