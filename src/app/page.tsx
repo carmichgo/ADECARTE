@@ -78,6 +78,8 @@ export default function Home() {
   const [autoMergePreview, setAutoMergePreview] = useState<any[] | null>(null);
   const [partySort, setPartySort] = useState<{ field: string; desc: boolean }>({ field: "deposits", desc: true });
   const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
+  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
+  const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -234,9 +236,66 @@ export default function Home() {
   };
 
   // ── Cluster detection (computed client-side) ───
+  // Recompute balance data when categories are excluded
+  const filteredBalanceData = (() => {
+    if (!analyticsData?.raw_transactions || excludedCategories.size === 0) {
+      return analyticsData?.balance_over_time || [];
+    }
+    // Recompute from raw transactions excluding certain categories
+    const txns = analyticsData.raw_transactions.filter((t: any) => !excludedCategories.has(t.category || ""));
+    const byDate: Record<string, { date: string; raw_date: string; inflow: number; outflow: number; net: number; count: number; withdraw_count: number; withdraw_total: number }> = {};
+    for (const t of txns) {
+      const d = t.date || "Unknown";
+      if (!byDate[d]) byDate[d] = { date: d, raw_date: d, inflow: 0, outflow: 0, net: 0, count: 0, withdraw_count: 0, withdraw_total: 0 };
+      const amount = t.amount || 0;
+      const dir = (t.direction || "").toLowerCase();
+      if (dir.match(/internal|transfer between/)) { byDate[d].count++; continue; }
+      if (amount > 0) byDate[d].inflow += amount;
+      else if (amount < 0) { byDate[d].outflow += Math.abs(amount); byDate[d].withdraw_count++; byDate[d].withdraw_total += Math.abs(amount); }
+      byDate[d].net += amount;
+      byDate[d].count++;
+    }
+    const sorted = Object.values(byDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let cum = 0;
+    return sorted.map(d => {
+      cum += d.net;
+      const parsed = new Date(d.date);
+      const label = isNaN(parsed.getTime()) ? d.date : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+      return { ...d, date: label, balance: cum };
+    });
+  })();
+
+  // Filtered counterparty data
+  const filteredTransactionCounts = (() => {
+    if (!analyticsData?.transaction_counts || excludedCategories.size === 0) {
+      return analyticsData?.transaction_counts || [];
+    }
+    // Recompute from raw
+    const txns = analyticsData.raw_transactions.filter((t: any) => !excludedCategories.has(t.category || ""));
+    const partyCounts: Record<string, any> = {};
+    for (const t of txns) {
+      const party = t.counterparty || "Unknown";
+      if (!partyCounts[party]) partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
+      const amount = t.amount || 0;
+      const dir = (t.direction || "").toLowerCase();
+      if (dir.match(/internal|transfer between/)) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
+      else if (amount > 0) { partyCounts[party].deposits++; partyCounts[party].deposit_amount += Math.abs(amount); }
+      else if (amount < 0) { partyCounts[party].withdrawals++; partyCounts[party].withdrawal_amount += Math.abs(amount); }
+    }
+    return Object.values(partyCounts).sort((a: any, b: any) => (b.deposits + b.withdrawals) - (a.deposits + a.withdrawals)).slice(0, 50);
+  })();
+
+  // Get all unique categories from raw transactions
+  const allCategories = (() => {
+    if (!analyticsData?.raw_transactions) return [];
+    const cats = new Set<string>();
+    for (const t of analyticsData.raw_transactions) { if (t.category) cats.add(t.category); }
+    return [...cats].sort();
+  })();
+
   const withdrawalClusters = (() => {
-    if (!analyticsData?.balance_over_time) return [];
-    const data = analyticsData.balance_over_time;
+    if (!filteredBalanceData || filteredBalanceData.length === 0) return [];
+    const data = filteredBalanceData;
 
     // If flag filter is active, recompute withdraw counts from raw transactions
     let dateWithdrawals: Record<string, { count: number; total: number }> = {};
@@ -1331,6 +1390,41 @@ export default function Home() {
               <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
             ) : (
               <>
+                {/* Category Filter */}
+                {allCategories.length > 0 && (
+                  <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-[var(--text)]">Category Filter</h3>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">Exclude categories from all charts and calculations below</p>
+                      </div>
+                      {excludedCategories.size > 0 && (
+                        <button onClick={() => setExcludedCategories(new Set())}
+                          className="text-xs text-indigo-600 hover:underline">Clear all ({excludedCategories.size} excluded)</button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allCategories.map(cat => {
+                        const excluded = excludedCategories.has(cat);
+                        return (
+                          <button key={cat} onClick={() => {
+                            const next = new Set(excludedCategories);
+                            excluded ? next.delete(cat) : next.add(cat);
+                            setExcludedCategories(next);
+                          }}
+                            className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
+                              excluded
+                                ? "bg-[var(--bg-muted)] border-[var(--border)] text-[var(--text-muted)] line-through"
+                                : "bg-white border-[var(--border)] text-[var(--text-secondary)] hover:border-indigo-300"
+                            }`}>
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Cluster Detection Config */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
@@ -1376,10 +1470,10 @@ export default function Home() {
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
-                  {analyticsData.balance_over_time.length === 0 ? (
+                  {filteredBalanceData.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
                   ) : (() => {
-                    const raw = analyticsData.balance_over_time;
+                    const raw = filteredBalanceData;
                     const start = brushRange?.start ?? 0;
                     const end = brushRange?.end ?? raw.length - 1;
                     const visibleCount = end - start + 1;
@@ -1568,12 +1662,12 @@ export default function Home() {
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party.</p>
-                  {analyticsData.transaction_counts.length === 0 ? (
+                  {filteredTransactionCounts.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
                   ) : (
                     <>
-                      <ResponsiveContainer width="100%" height={Math.max(300, analyticsData.transaction_counts.length * 32)}>
-                        <BarChart data={analyticsData.transaction_counts} layout="vertical" margin={{ left: 150 }}>
+                      <ResponsiveContainer width="100%" height={Math.max(300, filteredTransactionCounts.length * 32)}>
+                        <BarChart data={filteredTransactionCounts} layout="vertical" margin={{ left: 150 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                           <XAxis type="number" tick={{ fill: "#a3a3a3", fontSize: 11 }} />
                           <YAxis dataKey="party" type="category" tick={{ fill: "#a3a3a3", fontSize: 11 }} width={140} />
@@ -1608,7 +1702,9 @@ export default function Home() {
                               <tbody>
                                 {sorted.map((p: any) => (
                                   <tr key={p.party} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]">
-                                    <td className="px-3 py-2 font-medium">{p.party}</td>
+                                    <td className="px-3 py-2 font-medium">
+                                      <button onClick={() => setDrillCounterparty(p.party)} className="text-indigo-600 hover:underline text-left">{p.party}</button>
+                                    </td>
                                     <td className="px-3 py-2 text-emerald-600">{p.deposits}</td>
                                     <td className="px-3 py-2 text-emerald-600 tabular-nums">{fmt(p.deposit_amount)}</td>
                                     <td className="px-3 py-2 text-red-600">{p.withdrawals}</td>
@@ -1663,7 +1759,7 @@ export default function Home() {
                     const totalGrowth = totalPV - totalStolen;
 
                     // Build counterfactual balance chart
-                    const balData = analyticsData.balance_over_time;
+                    const balData = filteredBalanceData;
                     let cumFraudPV = 0;
                     let fraudIdx = 0;
                     const counterfactualData = balData.map((d: any, i: number) => {
@@ -1882,6 +1978,58 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Counterparty Drill-Down Modal */}
+      {drillCounterparty && analyticsData?.raw_transactions && (() => {
+        const txns = analyticsData.raw_transactions
+          .filter((t: any) => t.counterparty === drillCounterparty)
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const totalIn = txns.filter((t: any) => (t.amount || 0) > 0).reduce((s: number, t: any) => s + t.amount, 0);
+        const totalOut = txns.filter((t: any) => (t.amount || 0) < 0).reduce((s: number, t: any) => s + Math.abs(t.amount), 0);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setDrillCounterparty(null)} />
+            <div className="relative bg-white border border-[var(--border)] rounded-2xl shadow-xl w-[800px] max-w-[95vw] max-h-[85vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold">{drillCounterparty}</h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{txns.length} transactions</p>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div><span className="text-[var(--text-muted)]">In:</span> <span className="text-emerald-600 font-semibold">{fmt(totalIn)}</span></div>
+                  <div><span className="text-[var(--text-muted)]">Out:</span> <span className="text-red-600 font-semibold">{fmt(totalOut)}</span></div>
+                  <div><span className="text-[var(--text-muted)]">Net:</span> <span className={`font-semibold ${totalIn - totalOut >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmt(totalIn - totalOut)}</span></div>
+                  <button onClick={() => setDrillCounterparty(null)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg ml-2">&times;</button>
+                </div>
+              </div>
+              <div className="overflow-auto flex-1 p-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[var(--text-muted)] text-xs uppercase border-b border-[var(--border)]">
+                      {["Date", "Description", "Amount", "Direction", "Account", "Category", "Flag"].map(h => (
+                        <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {txns.map((t: any) => (
+                      <tr key={t.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                        <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
+                        <td className="px-3 py-2 max-w-[200px] truncate" title={t.description}>{t.description || "-"}</td>
+                        <td className={`px-3 py-2 tabular-nums font-medium ${(t.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
+                        <td className="px-3 py-2">{t.direction || "-"}</td>
+                        <td className="px-3 py-2">{t.account || "-"}</td>
+                        <td className="px-3 py-2">{t.category || "-"}</td>
+                        <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Edit Modal */}
       {editTxn && (
