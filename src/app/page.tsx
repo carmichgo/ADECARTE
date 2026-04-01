@@ -81,6 +81,7 @@ export default function Home() {
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
   const [clusterMinAmount, setClusterMinAmount] = useState(10000);
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
+  const [clusterFlagFilter, setClusterFlagFilter] = useState<string>("all");
   // AI Chat
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string; annotations?: any[] }>>([]);
@@ -233,30 +234,47 @@ export default function Home() {
   const withdrawalClusters = (() => {
     if (!analyticsData?.balance_over_time) return [];
     const data = analyticsData.balance_over_time;
-    const clusters: Array<{ startIdx: number; endIdx: number; count: number; total: number; label: string }> = [];
 
+    // If flag filter is active, recompute withdraw counts from raw transactions
+    let dateWithdrawals: Record<string, { count: number; total: number }> = {};
+    if (clusterFlagFilter !== "all" && analyticsData.raw_transactions) {
+      for (const t of analyticsData.raw_transactions) {
+        if ((t.amount || 0) >= 0) continue;
+        const dir = (t.direction || "").toLowerCase();
+        if (dir.match(/internal|transfer between/)) continue;
+        if (clusterFlagFilter === "suspicious+critical") {
+          if (t.flag !== "suspicious" && t.flag !== "critical") continue;
+        } else if (t.flag !== clusterFlagFilter) continue;
+        const d = t.date || "Unknown";
+        if (!dateWithdrawals[d]) dateWithdrawals[d] = { count: 0, total: 0 };
+        dateWithdrawals[d].count++;
+        dateWithdrawals[d].total += Math.abs(t.amount);
+      }
+    }
+
+    const clusters: Array<{ startIdx: number; endIdx: number; count: number; total: number; label: string }> = [];
     for (let i = 0; i < data.length; i++) {
-      // Look ahead within window
       let windowCount = 0;
       let windowTotal = 0;
       let endIdx = i;
 
       for (let j = i; j < data.length; j++) {
-        const dayDiff = j - i; // approximate: each entry is a date
+        const dayDiff = j - i;
         if (dayDiff > clusterWindowDays) break;
-        windowCount += data[j].withdraw_count || 0;
-        windowTotal += data[j].withdraw_total || 0;
+        if (clusterFlagFilter !== "all" && dateWithdrawals[data[j].raw_date]) {
+          windowCount += dateWithdrawals[data[j].raw_date].count;
+          windowTotal += dateWithdrawals[data[j].raw_date].total;
+        } else if (clusterFlagFilter === "all") {
+          windowCount += data[j].withdraw_count || 0;
+          windowTotal += data[j].withdraw_total || 0;
+        }
         endIdx = j;
       }
 
       if (windowCount >= clusterMinWithdrawals && windowTotal >= clusterMinAmount) {
-        // Avoid overlapping clusters
         if (clusters.length === 0 || i > clusters[clusters.length - 1].endIdx) {
           clusters.push({
-            startIdx: i,
-            endIdx,
-            count: windowCount,
-            total: windowTotal,
+            startIdx: i, endIdx, count: windowCount, total: windowTotal,
             label: `${windowCount} withdrawals, $${windowTotal.toLocaleString()}`,
           });
         }
@@ -1264,6 +1282,17 @@ export default function Home() {
                       <label className="text-[var(--text-muted)] text-xs">Window (days):</label>
                       <input type="number" min={1} value={clusterWindowDays} onChange={e => setClusterWindowDays(Number(e.target.value) || 1)}
                         className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-16 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <label className="text-[var(--text-muted)] text-xs">Flag:</label>
+                      {([["all", "All"], ["suspicious+critical", "Suspicious+Critical"], ["suspicious", "Suspicious"], ["critical", "Critical"], ["review", "Review"], ["normal", "Normal"]] as [string, string][]).map(([val, label]) => (
+                        <button key={val} onClick={() => setClusterFlagFilter(val)}
+                          className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${clusterFlagFilter === val
+                            ? "bg-indigo-500 border-indigo-500 text-white"
+                            : "border-[var(--border)] text-[var(--text-muted)] hover:text-white"}`}>
+                          {label}
+                        </button>
+                      ))}
                     </div>
                     <span className="text-xs text-amber-400 font-medium">
                       {withdrawalClusters.length} cluster{withdrawalClusters.length !== 1 ? "s" : ""} detected
