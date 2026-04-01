@@ -75,6 +75,7 @@ export default function Home() {
   const [mergeStatus, setMergeStatus] = useState<{ type: string; msg: string } | null>(null);
   const [autoMergeLoading, setAutoMergeLoading] = useState(false);
   const [autoMergePreview, setAutoMergePreview] = useState<any[] | null>(null);
+  const [partySort, setPartySort] = useState<{ field: string; desc: boolean }>({ field: "deposits", desc: true });
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -1436,25 +1437,42 @@ export default function Home() {
                         </BarChart>
                       </ResponsiveContainer>
                       <div className="mt-4 overflow-x-auto">
-                        <table className="w-full text-sm border border-[var(--border)] rounded-lg">
-                          <thead><tr>
-                            {["Party", "Deposits", "Deposit Amount", "Withdrawals", "Withdrawal Amount", "Net"].map(h => (
-                              <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
-                            ))}
-                          </tr></thead>
-                          <tbody>
-                            {analyticsData.transaction_counts.map((p: any) => (
-                              <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
-                                <td className="px-3 py-2 font-medium">{p.party}</td>
-                                <td className="px-3 py-2 text-green-400">{p.deposits}</td>
-                                <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
-                                <td className="px-3 py-2 text-red-400">{p.withdrawals}</td>
-                                <td className="px-3 py-2 text-red-400 tabular-nums">{fmt(p.withdrawal_amount)}</td>
-                                <td className={`px-3 py-2 font-semibold tabular-nums ${p.deposit_amount - p.withdrawal_amount >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(p.deposit_amount - p.withdrawal_amount)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        {(() => {
+                          const cols: [string, string][] = [["party", "Party"], ["deposits", "Deposits"], ["deposit_amount", "Deposit Amount"], ["withdrawals", "Withdrawals"], ["withdrawal_amount", "Withdrawal Amount"], ["net", "Net"]];
+                          const sorted = [...analyticsData.transaction_counts]
+                            .map((p: any) => ({ ...p, net: p.deposit_amount - p.withdrawal_amount }))
+                            .sort((a: any, b: any) => {
+                              const va = a[partySort.field] ?? "";
+                              const vb = b[partySort.field] ?? "";
+                              if (typeof va === "number" && typeof vb === "number") return partySort.desc ? vb - va : va - vb;
+                              return partySort.desc ? String(vb).localeCompare(String(va)) : String(va).localeCompare(String(vb));
+                            });
+                          return (
+                            <table className="w-full text-sm border border-[var(--border)] rounded-lg">
+                              <thead><tr>
+                                {cols.map(([key, label]) => (
+                                  <th key={key}
+                                    className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white select-none"
+                                    onClick={() => setPartySort(prev => prev.field === key ? { field: key, desc: !prev.desc } : { field: key, desc: true })}>
+                                    {label} {partySort.field === key ? (partySort.desc ? "↓" : "↑") : ""}
+                                  </th>
+                                ))}
+                              </tr></thead>
+                              <tbody>
+                                {sorted.map((p: any) => (
+                                  <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
+                                    <td className="px-3 py-2 font-medium">{p.party}</td>
+                                    <td className="px-3 py-2 text-green-400">{p.deposits}</td>
+                                    <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
+                                    <td className="px-3 py-2 text-red-400">{p.withdrawals}</td>
+                                    <td className="px-3 py-2 text-red-400 tabular-nums">{fmt(p.withdrawal_amount)}</td>
+                                    <td className={`px-3 py-2 font-semibold tabular-nums ${p.net >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(p.net)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
                       </div>
                     </>
                   )}
