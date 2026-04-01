@@ -246,6 +246,9 @@ export default function Home() {
   };
 
   // ── Cluster detection (computed client-side) ───
+  // Reset brush when categories change
+  useEffect(() => { setBrushRange(null); }, [excludedCategories]);
+
   // Recompute balance data when categories are excluded
   const filteredBalanceData = (() => {
     if (!analyticsData?.raw_transactions || excludedCategories.size === 0) {
@@ -935,8 +938,38 @@ export default function Home() {
           <div className="p-6 lg:p-8">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-[var(--text)]">Transactions</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">View, filter, and manage all transactions</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">{transactions.length} transactions shown</p>
             </div>
+
+            {/* KPIs for currently displayed transactions */}
+            {transactions.length > 0 && (() => {
+              const deposits = transactions.filter(t => t.amount > 0);
+              const withdrawals = transactions.filter(t => t.amount < 0);
+              const suspicious = transactions.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
+              const uncategorized = transactions.filter(t => !t.category);
+              const totalDeposits = deposits.reduce((s, t) => s + t.amount, 0);
+              const totalWithdrawals = withdrawals.reduce((s, t) => s + Math.abs(t.amount), 0);
+              const net = totalDeposits - totalWithdrawals;
+              return (
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+                  {([
+                    ["Deposits", `${fmt(totalDeposits)}`, `${deposits.length} txns`, "text-emerald-600"],
+                    ["Withdrawals", `${fmt(totalWithdrawals)}`, `${withdrawals.length} txns`, "text-red-600"],
+                    ["Net", `${fmt(net)}`, "", net >= 0 ? "text-emerald-600" : "text-red-600"],
+                    ["Suspicious", `${suspicious.length}`, "", "text-orange-600"],
+                    ["Verified Fraud", `${transactions.filter(t => t.flag === "verified_fraud").length}`, "", "text-red-600"],
+                    ["Uncategorized", `${uncategorized.length}`, "", "text-[var(--text-muted)]"],
+                  ] as [string, string, string, string][]).map(([label, value, sub, color], i) => (
+                    <div key={i} className="bg-white border border-[var(--border)] rounded-xl px-4 py-3">
+                      <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
+                      <div className={`text-lg font-bold mt-0.5 ${color}`}>{value}</div>
+                      {sub && <div className="text-[10px] text-[var(--text-muted)]">{sub}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <div className="flex flex-wrap gap-2 mb-4 items-center">
               <input placeholder="Search..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-60"
                 value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
