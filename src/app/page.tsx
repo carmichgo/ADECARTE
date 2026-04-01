@@ -909,7 +909,7 @@ export default function Home() {
                 <>
                   <h3 className="font-semibold mb-3">Column Mapping</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {["date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "reference", "counterparty", "symbol", "security", "strategy", "direction"].map(f => (
+                    {["date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "bank", "reference", "counterparty", "symbol", "security", "strategy", "direction"].map(f => (
                       <div key={f} className="flex flex-col gap-1">
                         <label className="text-xs text-[var(--text-muted)] capitalize">{f}</label>
                         <select
@@ -1036,7 +1036,7 @@ export default function Home() {
                       ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
-                      ["account_name", "Account"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
+                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
                       ["category", "Category"], ["flag", "Flag"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
@@ -1082,6 +1082,7 @@ export default function Home() {
                       <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
                       <td className="px-3 py-2 tabular-nums">{t.unit_price ? fmt(t.unit_price) : "-"}</td>
                       <td className="px-3 py-2">{t.account || t.account_name || "-"}</td>
+                      <td className="px-3 py-2 text-[var(--text-muted)]">{t.bank || "-"}</td>
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.counterparty || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>

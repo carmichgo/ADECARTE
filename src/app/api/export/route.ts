@@ -15,7 +15,7 @@ export async function GET() {
   const headers = [
     "id", "date", "settle_date", "description", "amount", "unit_price",
     "quantity", "currency", "account", "account_name", "reference",
-    "counterparty", "symbol", "security", "strategy", "direction",
+    "counterparty", "symbol", "security", "strategy", "direction", "bank",
     "category", "subcategory", "flag", "notes", "categorized_by",
   ];
 
