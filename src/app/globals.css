@@ -87,6 +87,17 @@
 [data-theme="dark"] .border-indigo-200 { border-color: rgba(99, 102, 241, 0.3) !important; }
 [data-theme="dark"] .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
 [data-theme="dark"] .shadow-xl { box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important; }
+[data-theme="dark"] .shadow-lg { box-shadow: 0 10px 40px rgba(0,0,0,0.5) !important; }
+[data-theme="dark"] .bg-gray-100 { background-color: rgba(255,255,255,0.1) !important; }
+[data-theme="dark"] .text-gray-400 { color: #71717a !important; }
+[data-theme="dark"] .border-gray-200 { border-color: rgba(255,255,255,0.15) !important; }
+/* Fix chat and prose colors in dark mode */
+[data-theme="dark"] .prose { color: #a1a1aa; }
+[data-theme="dark"] .prose strong { color: #fafafa; }
+[data-theme="dark"] .prose h1, [data-theme="dark"] .prose h2, [data-theme="dark"] .prose h3 { color: #fafafa; }
+[data-theme="dark"] .prose code { color: #a5b4fc; background: rgba(99,102,241,0.15); }
+[data-theme="dark"] .prose pre { background: #111113; border-color: #27272a; }
+[data-theme="dark"] .line-through { text-decoration-color: currentColor !important; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; -webkit-font-smoothing: antialiased; }

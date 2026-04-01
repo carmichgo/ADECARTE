@@ -89,7 +89,7 @@ export default function Home() {
   const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "clusters" | "fraud" | "tools">("overview");
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools">("overview");
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -1101,145 +1101,130 @@ export default function Home() {
 
         {/* ═══ Categorize ═══ */}
         {tab === "categorize" && (
-          <div className="p-6 lg:p-8 max-w-[1200px]">
+          <div className="p-6 lg:p-8 max-w-[1400px]">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-[var(--text)]">AI Categorization</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">Configure AI and run bulk categorization</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Configure AI context and run bulk categorization</p>
             </div>
 
-            {/* Investigation Context */}
-            <div className="bg-[var(--bg-card)] border border-amber-200 rounded-lg p-5 mb-6">
-              <h3 className="font-semibold mb-2 text-amber-600">Investigation Context</h3>
-              <p className="text-xs text-[var(--text-muted)] mb-2">Describe the situation — what happened, who is involved, which accounts are suspect. This context is sent to ALL AI features (categorization, analyst chat, party extraction).</p>
-              <textarea
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-3 py-2 text-sm min-h-[100px] mb-2"
-                placeholder="e.g. 'We suspect that an employee named X diverted funds from accounts A and B to personal accounts. The fraud may have started around March 2024. Authorized vendors include Company Y and Company Z. Any transfers to unknown personal accounts should be flagged...'"
-                value={investigationContext}
-                onChange={e => {
-                  setInvestigationContext(e.target.value);
-                  if (typeof window !== "undefined") localStorage.setItem("adecarte_investigation_context", e.target.value);
-                }}
-              />
-              <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. Persists across sessions.</p>
+            {/* Progress bar */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Progress</h3>
+                <span className="text-xs text-[var(--text-muted)]">{stats?.categorized || 0} / {(stats?.categorized || 0) + (stats?.uncategorized || 0)} categorized</span>
+              </div>
+              <div className="w-full h-2 bg-[var(--bg-muted)] rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${stats ? (stats.categorized / Math.max(stats.categorized + stats.uncategorized, 1)) * 100 : 0}%` }} />
+              </div>
+              <div className="flex gap-6 mt-3 text-xs text-[var(--text-muted)]">
+                <span>{stats?.uncategorized || 0} remaining</span>
+                <span>{stats?.categorized || 0} done</span>
+              </div>
             </div>
 
-            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 space-y-5">
-              <div className="border border-[var(--border)] rounded-2xl p-4">
-                <h3 className="text-indigo-600 font-semibold mb-2">Step 1: Manual Categorization</h3>
-                <p className="text-sm text-[var(--text-muted)] mb-2">Go to All Transactions and manually categorize at least 3 transactions. The more you categorize, the better the AI will perform.</p>
-                <p className="text-sm text-[var(--text-muted)]">{stats?.categorized || 0} categorized, {stats?.uncategorized || 0} remaining</p>
+            {/* Two column layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              {/* Left: Config */}
+              <div className="space-y-4">
+                <CollapsibleSection title="Investigation Context" subtitle="Background for all AI features" defaultOpen={!!investigationContext}>
+                  <textarea
+                    className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm min-h-[100px] mt-3"
+                    placeholder="Describe the situation: who is suspected, which accounts, when it may have started..."
+                    value={investigationContext}
+                    onChange={e => { setInvestigationContext(e.target.value); if (typeof window !== "undefined") localStorage.setItem("adecarte_investigation_context", e.target.value); }}
+                  />
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">Auto-saved in browser</p>
+                </CollapsibleSection>
+
+                <CollapsibleSection title="AI Instructions" subtitle="Custom rules for categorization" defaultOpen={!!aiInstructions}>
+                  <textarea
+                    className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm min-h-[80px] mt-3"
+                    placeholder="e.g. 'Payments to John Doe are authorized. Amounts over $50k to unknown parties = critical...'"
+                    value={aiInstructions}
+                    onChange={e => { setAiInstructions(e.target.value); if (typeof window !== "undefined") localStorage.setItem("adecarte_ai_instructions", e.target.value); }}
+                  />
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">Auto-saved in browser</p>
+                </CollapsibleSection>
               </div>
-              <div className="border border-[var(--border)] rounded-2xl p-4">
-                <h3 className="text-indigo-600 font-semibold mb-2">AI Instructions</h3>
-                <p className="text-sm text-[var(--text-muted)] mb-2">Give the AI context about your investigation. These instructions are used by all AI categorization (bulk, per-row, and analyst chat).</p>
-                <textarea
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-3 py-2 text-sm min-h-[80px] mb-2"
-                  placeholder="e.g. 'Any transfer to account X is suspicious. Payments to John Doe are authorized vendor payments. Amounts over $50k to unknown parties should be flagged critical...'"
-                  value={aiInstructions}
-                  onChange={e => {
-                    setAiInstructions(e.target.value);
-                    if (typeof window !== "undefined") localStorage.setItem("adecarte_ai_instructions", e.target.value);
-                  }}
-                />
-                <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. These instructions persist across sessions.</p>
-              </div>
-              <div className="border border-[var(--border)] rounded-2xl p-4">
-                <h3 className="text-indigo-600 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
-                <p className="text-sm text-[var(--text-muted)] mb-3">AI will propose categorizations for review. You can accept/reject each one before applying.</p>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <button onClick={runAiPreview} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
-                    className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
-                    {aiLoading && !aiPreview ? <><span className="spinner mr-2"></span>Analyzing...</> : "Generate Proposals"}
-                  </button>
-                  {aiPreview && aiPreview.length > 0 && (
-                    <>
-                      <button onClick={applyAiPreview} disabled={aiLoading || aiPreviewAccepted.size === 0}
-                        className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-md font-medium text-white">
-                        {aiLoading ? <><span className="spinner mr-2"></span>Applying...</> : `Apply (${aiPreviewAccepted.size}/${aiPreview.length})`}
-                      </button>
-                      <button onClick={() => { setAiPreview(null); setAiStatus(null); }}
-                        className="px-4 py-2.5 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-muted)]">
-                        Discard
-                      </button>
-                    </>
-                  )}
-                  {aiUndoSnapshot && (
-                    <button onClick={undoAiCategorize} disabled={aiLoading}
-                      className="px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded-md font-medium text-sm">
-                      Undo Last Apply ({aiUndoSnapshot.length} txns)
+
+              {/* Right: Action */}
+              <div className="lg:col-span-2">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-6">
+                  <h3 className="text-sm font-semibold mb-1">Run AI Categorization</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-4">AI analyzes uncategorized transactions and proposes categories, directions, and flags. Review before applying.</p>
+
+                  <div className="flex flex-wrap gap-2 items-center mb-4">
+                    <button onClick={runAiPreview} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
+                      className="px-5 py-2.5 bg-[var(--text)] text-[var(--bg)] hover:opacity-80 transition-opacity disabled:opacity-30 rounded-xl text-sm font-semibold">
+                      {aiLoading && !aiPreview ? <><span className="spinner mr-2"></span>Analyzing...</> : "Generate Proposals"}
                     </button>
-                  )}
-                </div>
-                <StatusMsg status={aiStatus} />
+                    {aiPreview && aiPreview.length > 0 && (
+                      <>
+                        <button onClick={applyAiPreview} disabled={aiLoading || aiPreviewAccepted.size === 0}
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 rounded-xl text-sm font-semibold text-white">
+                          {aiLoading ? <><span className="spinner mr-2"></span>Applying...</> : `Apply ${aiPreviewAccepted.size} of ${aiPreview.length}`}
+                        </button>
+                        <button onClick={() => { setAiPreview(null); setAiStatus(null); }}
+                          className="px-4 py-2.5 border border-[var(--border)] rounded-xl text-sm hover:bg-[var(--bg-muted)]">
+                          Discard
+                        </button>
+                      </>
+                    )}
+                    {aiUndoSnapshot && (
+                      <button onClick={undoAiCategorize} disabled={aiLoading}
+                        className="px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded-xl text-sm font-medium">
+                        Undo ({aiUndoSnapshot.length})
+                      </button>
+                    )}
+                  </div>
+                  <StatusMsg status={aiStatus} />
 
-                {/* Preview table */}
-                {aiPreview && aiPreview.length > 0 && (
-                  <div className="mt-4 border border-[var(--border)] rounded-2xl overflow-hidden">
-                    <div className="bg-[var(--bg-muted)] px-3 py-2 flex items-center justify-between">
-                      <span className="text-xs font-medium">{aiPreview.length} proposals — {aiPreviewAccepted.size} accepted</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setAiPreviewAccepted(new Set(aiPreview.map((p: any) => p.id)))}
-                          className="text-[10px] text-indigo-600 hover:underline">Select All</button>
-                        <button onClick={() => setAiPreviewAccepted(new Set())}
-                          className="text-[10px] text-[var(--text-muted)] hover:underline">Deselect All</button>
+                  {/* Preview table */}
+                  {aiPreview && aiPreview.length > 0 && (
+                    <div className="mt-4 border border-[var(--border)] rounded-xl overflow-hidden">
+                      <div className="bg-[var(--bg-muted)] px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold">{aiPreviewAccepted.size} of {aiPreview.length} selected</span>
+                        <div className="flex gap-3">
+                          <button onClick={() => setAiPreviewAccepted(new Set(aiPreview.map((p: any) => p.id)))}
+                            className="text-xs text-indigo-600 hover:underline">All</button>
+                          <button onClick={() => setAiPreviewAccepted(new Set())}
+                            className="text-xs text-[var(--text-muted)] hover:underline">None</button>
+                        </div>
+                      </div>
+                      <div className="max-h-[400px] overflow-auto">
+                        <table className="w-full text-xs">
+                          <thead><tr className="bg-[var(--bg-page)] sticky top-0">
+                            <th className="px-3 py-2 text-left w-8"></th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Date</th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Description</th>
+                            <th className="px-3 py-2 text-right text-[var(--text-muted)] font-medium">Amount</th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Category</th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Direction</th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Flag</th>
+                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Reasoning</th>
+                          </tr></thead>
+                          <tbody>
+                            {aiPreview.map((p: any) => {
+                              const accepted = aiPreviewAccepted.has(p.id);
+                              return (
+                                <tr key={p.id} className={`border-t border-[var(--border-subtle)] ${accepted ? "hover:bg-[var(--bg-muted)]" : "opacity-30"}`}>
+                                  <td className="px-3 py-2"><input type="checkbox" checked={accepted} onChange={() => { const n = new Set(aiPreviewAccepted); accepted ? n.delete(p.id) : n.add(p.id); setAiPreviewAccepted(n); }} /></td>
+                                  <td className="px-3 py-2 whitespace-nowrap">{p.original?.date || "-"}</td>
+                                  <td className="px-3 py-2 max-w-[180px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
+                                  <td className={`px-3 py-2 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</td>
+                                  <td className="px-3 py-2 font-medium">{p.category}</td>
+                                  <td className="px-3 py-2"><span className={p.direction === "Internal Transfer" ? "text-amber-600" : p.direction === "Contribution" ? "text-emerald-600" : "text-red-600"}>{p.direction}</span></td>
+                                  <td className="px-3 py-2"><FlagBadge flag={p.flag} /></td>
+                                  <td className="px-3 py-2 max-w-[200px] truncate text-[var(--text-muted)]" title={p.reasoning}>{p.reasoning}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                    <div className="max-h-[400px] overflow-y-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-[var(--bg)]">
-                            <th className="px-2 py-1.5 text-left w-8"></th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Date</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Description</th>
-                            <th className="px-2 py-1.5 text-right text-[var(--text-muted)]">Amount</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Category</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Direction</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Flag</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Confidence</th>
-                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Reasoning</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {aiPreview.map((p: any) => {
-                            const accepted = aiPreviewAccepted.has(p.id);
-                            return (
-                              <tr key={p.id} className={`border-t border-[var(--border)] ${accepted ? "" : "opacity-40"}`}>
-                                <td className="px-2 py-1.5">
-                                  <input type="checkbox" checked={accepted}
-                                    onChange={() => {
-                                      const next = new Set(aiPreviewAccepted);
-                                      accepted ? next.delete(p.id) : next.add(p.id);
-                                      setAiPreviewAccepted(next);
-                                    }} />
-                                </td>
-                                <td className="px-2 py-1.5 whitespace-nowrap">{p.original?.date || "-"}</td>
-                                <td className="px-2 py-1.5 max-w-[200px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
-                                <td className={`px-2 py-1.5 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</td>
-                                <td className="px-2 py-1.5 font-medium">{p.category}</td>
-                                <td className="px-2 py-1.5">
-                                  <span className={
-                                    p.direction === "Internal Transfer" ? "text-amber-600" :
-                                    p.direction === "Contribution" ? "text-emerald-600" : "text-red-600"
-                                  }>{p.direction}</span>
-                                </td>
-                                <td className="px-2 py-1.5"><FlagBadge flag={p.flag} /></td>
-                                <td className="px-2 py-1.5 tabular-nums">{((p.confidence || 0) * 100).toFixed(0)}%</td>
-                                <td className="px-2 py-1.5 max-w-[200px] truncate text-[var(--text-muted)]" title={p.reasoning}>{p.reasoning}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="border border-[var(--border)] rounded-2xl p-4">
-                <h3 className="text-indigo-600 font-semibold mb-2">Step 3: Review Results</h3>
-                <p className="text-sm text-[var(--text-muted)]">
-                  Review AI categorizations in <button onClick={() => setTab("transactions")} className="text-indigo-600 underline">Transactions</button> tab.
-                  Check <button onClick={() => setTab("suspicious")} className="text-indigo-600 underline">Suspicious Activity</button> for flagged items.
-                </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1344,7 +1329,6 @@ export default function Home() {
               {([
                 ["overview", "Overview"],
                 ["counterparties", "Counterparties"],
-                ["clusters", "Clusters"],
                 ["fraud", "Fraud Impact"],
                 ["tools", "AI Tools"],
               ] as [typeof analyticsTab, string][]).map(([key, label]) => (
@@ -1509,8 +1493,8 @@ export default function Home() {
               <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
             ) : (
               <>
-                {/* === Clusters Tab === */}
-                {analyticsTab === "clusters" && (
+                {/* Cluster Detection — shown in Overview */}
+                {analyticsTab === "overview" && (
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-sm">Withdrawal Cluster Detection</h3>
@@ -1553,8 +1537,8 @@ export default function Home() {
                 </div>
                 )}
 
-                {/* Chart 1: Overall Balance Over Time — shown on Overview and Clusters tabs */}
-                {(analyticsTab === "overview" || analyticsTab === "clusters") && (<>
+                {/* Chart 1: Overall Balance Over Time */}
+                {analyticsTab === "overview" && (<>
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
@@ -1975,7 +1959,7 @@ export default function Home() {
       {/* AI Chat Toggle Button (fixed) */}
       <button onClick={() => setChatOpen(!chatOpen)}
         className={`fixed bottom-6 z-40 px-5 py-3 rounded-2xl shadow-2xl text-[13px] font-semibold transition-all duration-200 flex items-center gap-2 ${
-          chatOpen ? "right-[432px] bg-white border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] shadow-sm" : "right-6 bg-[var(--text)] hover:bg-[var(--primary-hover)] text-white shadow-lg"
+          chatOpen ? "right-[432px] bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] shadow-sm" : "right-6 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg"
         }`}>
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d={chatOpen ? "M6 18L18 6M6 6l12 12" : "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"} />
@@ -2021,12 +2005,12 @@ export default function Home() {
           {chatMessages.map((msg, i) => (
             <div key={i} className={msg.role === "user" ? "flex justify-end" : ""}>
               {msg.role === "user" ? (
-                <div className="bg-[var(--text)] text-white rounded-2xl px-4 py-2.5 text-sm max-w-[85%]">
+                <div className="bg-indigo-600 text-white rounded-2xl px-4 py-2.5 text-sm max-w-[85%]">
                   {msg.text}
                 </div>
               ) : (
                 <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-4 py-3 text-sm">
-                  <div className="prose prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-600">
+                  <div className="prose prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:px-1 prose-code:rounded prose-a:text-[var(--accent)]">
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
                   {((msg as any).actions || (msg.annotations && msg.annotations.length > 0)) && (

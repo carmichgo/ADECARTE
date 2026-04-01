@@ -68,6 +68,34 @@ const tools: Anthropic.Messages.Tool[] = [
       required: ["annotations"],
     },
   },
+  {
+    name: "query_transactions",
+    description: "Query the transactions database to get accurate data. Use this to verify numbers, find specific transactions, check peaks/drops, or answer questions needing precise data. Returns up to 100 matching rows.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        select: { type: "string", description: "Comma-separated columns to return. E.g. 'id,date,amount,description,counterparty,flag'" },
+        filters: {
+          type: "array",
+          description: "Array of filters to apply",
+          items: {
+            type: "object",
+            properties: {
+              column: { type: "string" },
+              operator: { type: "string", enum: ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "in", "is"] },
+              value: { type: "string", description: "Value to compare. For 'in' use comma-separated. For 'is' use 'null'." },
+            },
+            required: ["column", "operator", "value"],
+          },
+        },
+        order: { type: "string", description: "Column to order by" },
+        ascending: { type: "boolean", description: "Sort ascending (default false)" },
+        limit: { type: "number", description: "Max rows to return (default 50, max 100)" },
+        explanation: { type: "string", description: "Why you need this query" },
+      },
+      required: ["select"],
+    },
+  },
 ];
 
 export async function POST(req: NextRequest) {
@@ -99,11 +127,12 @@ export async function POST(req: NextRequest) {
   const systemPrompt = `You are a forensic financial analyst investigating potential fraud and unauthorized money transfers. You have access to transaction data and analytics.
 
 You have tools to:
-1. **categorize_transactions** — categorize or re-categorize specific transactions
-2. **flag_transactions** — flag transactions as suspicious/critical
-3. **annotate_chart** — draw visual markers on the charts (circles, dots, highlights, arrows)
+1. **query_transactions** — Query the database directly for accurate data. USE THIS to verify numbers, find peaks, check specific dates/amounts, or when the summary data might be incomplete. Always query before making claims about specific values.
+2. **categorize_transactions** — categorize or re-categorize specific transactions
+3. **flag_transactions** — flag transactions as suspicious/critical
+4. **annotate_chart** — draw visual markers on the charts (circles, dots, highlights, arrows)
 
-ALWAYS use the annotate_chart tool to visually highlight your findings on the charts.
+IMPORTANT: ALWAYS use query_transactions first to verify your analysis before making claims. The summary data may be incomplete. Use annotate_chart to visually highlight your findings.
 When you identify suspicious transactions, use flag_transactions or categorize_transactions to take action.
 
 Use markdown in your text responses for readability.
@@ -176,14 +205,40 @@ ${rawSample || "No data"}`;
 
       // If the model wants to continue after tool use
       if (response.stop_reason === "tool_use") {
-        // Build tool results
-        const toolResults: Anthropic.Messages.ToolResultBlockParam[] = response.content
+        // Build tool results — for SQL queries, return actual data
+        const toolResultsPromises = response.content
           .filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use")
-          .map(b => ({
-            type: "tool_result" as const,
-            tool_use_id: b.id,
-            content: JSON.stringify({ success: true }),
-          }));
+          .map(async (b) => {
+            const inp = b.input as any;
+            if (b.name === "query_transactions") {
+              try {
+                const db = getSupabase();
+                let query: any = db.from("transactions").select(inp.select || "*");
+                for (const f of (inp.filters || [])) {
+                  const val = f.value;
+                  if (f.operator === "eq") query = query.eq(f.column, val);
+                  else if (f.operator === "neq") query = query.neq(f.column, val);
+                  else if (f.operator === "gt") query = query.gt(f.column, val);
+                  else if (f.operator === "gte") query = query.gte(f.column, val);
+                  else if (f.operator === "lt") query = query.lt(f.column, val);
+                  else if (f.operator === "lte") query = query.lte(f.column, val);
+                  else if (f.operator === "like") query = query.like(f.column, val);
+                  else if (f.operator === "ilike") query = query.ilike(f.column, val);
+                  else if (f.operator === "in") query = query.in(f.column, val.split(",").map((v: string) => v.trim()));
+                  else if (f.operator === "is") query = query.is(f.column, val === "null" ? null : val);
+                }
+                if (inp.order) query = query.order(inp.order, { ascending: inp.ascending ?? false });
+                query = query.limit(Math.min(inp.limit || 50, 100));
+                const { data, error } = await query;
+                if (error) return { type: "tool_result" as const, tool_use_id: b.id, content: JSON.stringify({ error: error.message }) };
+                return { type: "tool_result" as const, tool_use_id: b.id, content: JSON.stringify({ rows: data, count: data?.length || 0 }) };
+              } catch (err: any) {
+                return { type: "tool_result" as const, tool_use_id: b.id, content: JSON.stringify({ error: err.message }) };
+              }
+            }
+            return { type: "tool_result" as const, tool_use_id: b.id, content: JSON.stringify({ success: true }) };
+          });
+        const toolResults = await Promise.all(toolResultsPromises);
 
         messages.push({ role: "assistant", content: response.content });
         messages.push({ role: "user", content: toolResults });
