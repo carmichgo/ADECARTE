@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceDot, ReferenceArea,
-  ReferenceLine
+  ReferenceLine, Brush
 } from "recharts";
 
 type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
@@ -1278,7 +1278,7 @@ export default function Home() {
                   {analyticsData.balance_over_time.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
                   ) : (
-                    <ResponsiveContainer width="100%" height={400}>
+                    <ResponsiveContainer width="100%" height={480}>
                       <LineChart data={analyticsData.balance_over_time}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
                         <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
@@ -1309,6 +1309,8 @@ export default function Home() {
                         <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
                         <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
                         <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
+                        <Brush dataKey="date" height={30} stroke="#6366f1" fill="#1a1d27" travellerWidth={10}
+                          startIndex={0} endIndex={Math.min(analyticsData.balance_over_time.length - 1, analyticsData.balance_over_time.length - 1)} />
                         {/* Cluster dots on balance line */}
                         {showClusters && withdrawalClusters.map((c, i) => {
                           const midIdx = Math.floor((c.startIdx + c.endIdx) / 2);
