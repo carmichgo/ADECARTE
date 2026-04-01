@@ -582,90 +582,133 @@ export default function Home() {
   const FlagBadge = ({ flag }: { flag: string }) => {
     if (!flag) return null;
     const colors: Record<string, string> = {
-      normal: "bg-green-500/15 text-green-400",
-      review: "bg-yellow-500/15 text-yellow-400",
-      suspicious: "bg-orange-500/15 text-orange-400",
-      critical: "bg-red-500/15 text-red-400",
-      verified_fraud: "bg-red-600 text-white",
+      normal: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
+      review: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
+      suspicious: "bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20",
+      critical: "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
+      verified_fraud: "bg-red-600 text-white ring-1 ring-red-500",
     };
-    return <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${colors[flag] || ""}`}>{flag === "verified_fraud" ? "VERIFIED FRAUD" : flag}</span>;
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[flag] || ""}`}>{flag === "verified_fraud" ? "FRAUD" : flag}</span>;
   };
 
   const SourceBadge = ({ src }: { src: string }) => {
     if (!src) return null;
-    const c = src === "manual" ? "border-indigo-400 text-indigo-400" : "border-amber-400 text-amber-400";
-    return <span className={`text-[10px] px-1.5 py-0.5 border rounded ${c}`}>{src}</span>;
+    const c = src === "manual" ? "bg-indigo-500/10 text-indigo-400" : "bg-amber-500/10 text-amber-400";
+    return <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c}`}>{src}</span>;
   };
 
   const StatusMsg = ({ status }: { status: { type: string; msg: string } | null }) => {
     if (!status) return null;
-    const c = { success: "border-green-500 bg-green-500/10", error: "border-red-500 bg-red-500/10 text-red-400", info: "border-indigo-500 bg-indigo-500/10" }[status.type] || "";
-    return <div className={`mt-3 p-3 rounded-lg border text-sm ${c}`}>{status.msg}</div>;
+    const styles: Record<string, string> = {
+      success: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
+      error: "border-red-500/30 bg-red-500/5 text-red-300",
+      info: "border-indigo-500/30 bg-indigo-500/5 text-indigo-300",
+    };
+    return <div className={`mt-3 px-4 py-3 rounded-lg border text-sm ${styles[status.type] || ""}`}>{status.msg}</div>;
+  };
+
+  const navIcons: Record<string, string> = {
+    dashboard: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+    upload: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
+    transactions: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    categorize: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z",
+    analytics: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+    suspicious: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-[var(--bg)]">
       {/* Sidebar */}
-      <nav className="w-[220px] bg-[var(--bg-card)] border-r border-[var(--border)] p-6 flex flex-col fixed top-0 bottom-0">
-        <div>
-          <h1 className="text-xl font-bold text-indigo-400 tracking-widest">ADECARTE</h1>
-          <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Transaction Investigator</span>
+      <nav className="w-[var(--sidebar-w)] bg-[var(--bg-elevated)] border-r border-[var(--border)] flex flex-col fixed top-0 bottom-0 z-20">
+        <div className="px-5 pt-6 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-sm font-bold text-[var(--text)] tracking-tight">ADECARTE</h1>
+              <span className="text-[10px] text-[var(--text-muted)] font-medium">Forensic Investigator</span>
+            </div>
+          </div>
         </div>
-        <ul className="mt-8 space-y-0.5">
-          {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "All Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious Activity"]] as [Tab, string][]).map(([key, label]) => (
-            <li key={key}>
-              <button onClick={() => setTab(key)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${tab === key ? "bg-indigo-500 text-white" : "text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-hover)]"}`}>
+
+        <div className="px-3 flex-1 overflow-y-auto">
+          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider px-2 mb-2">Investigation</div>
+          <div className="space-y-0.5">
+            {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious"]] as [Tab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setTab(key)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+                  tab === key
+                    ? "bg-[var(--bg-active)] text-[var(--text)] shadow-sm"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                }`}>
+                <svg className="w-4 h-4 flex-shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={navIcons[key] || navIcons.dashboard} />
+                </svg>
                 {label}
               </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-auto">
-          <a href="/api/export" className="block text-center text-sm px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-hover)] transition-colors">
+            ))}
+          </div>
+        </div>
+
+        <div className="p-3 border-t border-[var(--border)]">
+          <a href="/api/export"
+            className="flex items-center justify-center gap-2 w-full text-[13px] font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] transition-all">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
             Export CSV
           </a>
         </div>
       </nav>
 
       {/* Main */}
-      <main className="ml-[220px] flex-1 p-8 min-w-0">
+      <main className="ml-[var(--sidebar-w)] flex-1 min-w-0">
 
         {/* ═══ Dashboard ═══ */}
         {tab === "dashboard" && stats && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">Investigation Dashboard</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
+          <div className="p-6 lg:p-8 max-w-[1600px]">
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Dashboard</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Investigation overview and key metrics</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-8">
               {([
                 ["Total Txns", stats.total_transactions, ""],
                 ["Net Amount", fmt(stats.total_amount), ""],
-                ["Total Deposits", fmt(stats.total_deposits), "green"],
-                ["Total Withdrawals", fmt(stats.total_withdrawals), "red"],
+                ["Deposits", fmt(stats.total_deposits), "green"],
+                ["Withdrawals", fmt(stats.total_withdrawals), "red"],
                 ["Categorized", stats.categorized, ""],
                 ["Uncategorized", stats.uncategorized, ""],
                 ["Suspicious", fmt(stats.suspicious_amount), "alert"],
                 ["Verified Fraud", `${fmt(stats.verified_fraud_amount)} (${stats.verified_fraud_count})`, "fraud"],
               ] as [string, any, string][]).map(([label, value, color], i) => (
-                <div key={i} className={`bg-[var(--bg-card)] border rounded-lg p-4 text-center ${
-                  color === "fraud" ? "border-red-600 bg-red-600/15" :
-                  color === "alert" ? "border-red-500 bg-red-500/5" :
-                  color === "green" ? "border-green-500/30 bg-green-500/5" :
-                  color === "red" ? "border-red-500/30 bg-red-500/5" : "border-[var(--border)]"
+                <div key={i} className={`rounded-xl p-4 transition-all ${
+                  color === "fraud" ? "bg-red-500/10 ring-1 ring-red-500/30" :
+                  color === "alert" ? "bg-orange-500/5 ring-1 ring-orange-500/20" :
+                  color === "green" ? "bg-emerald-500/5 ring-1 ring-emerald-500/15" :
+                  color === "red" ? "bg-red-500/5 ring-1 ring-red-500/15" :
+                  "bg-[var(--bg-card)] ring-1 ring-[var(--border)]"
                 }`}>
-                  <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">{label}</div>
-                  <div className={`text-xl font-bold mt-1 ${color === "green" ? "text-green-400" : color === "red" || color === "alert" || color === "fraud" ? "text-red-400" : ""}`}>{String(value)}</div>
-                  {label === "Total Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.deposit_count} txns</div>}
-                  {label === "Total Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.withdrawal_count} txns</div>}
+                  <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
+                  <div className={`text-lg font-bold mt-1.5 tracking-tight ${
+                    color === "green" ? "text-emerald-400" :
+                    color === "red" || color === "alert" || color === "fraud" ? "text-red-400" : "text-[var(--text)]"
+                  }`}>{String(value)}</div>
+                  {label === "Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.deposit_count} txns</div>}
+                  {label === "Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.withdrawal_count} txns</div>}
                 </div>
               ))}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
-                <h3 className="font-semibold mb-3">By Category</h3>
+              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-[var(--text)] mb-3">By Category</h3>
                 <div className="max-h-72 overflow-y-auto space-y-1">
                   {stats.by_category.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
                     stats.by_category.map((c, i) => (
-                      <div key={i} className="flex justify-between text-sm py-1 border-b border-[var(--border)]">
+                      <div key={i} className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
                         <span className="flex-1 truncate">{c.category}</span>
                         <span className="text-[var(--text-muted)] mx-3">{c.count}</span>
                         <span className="font-semibold tabular-nums">{fmt(c.total_amount)}</span>
@@ -673,12 +716,12 @@ export default function Home() {
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
                 <h3 className="font-semibold mb-3">By Flag</h3>
                 <div className="space-y-1">
                   {stats.by_flag.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
                     stats.by_flag.map((f, i) => (
-                      <div key={i} className="flex justify-between items-center text-sm py-1 border-b border-[var(--border)]">
+                      <div key={i} className="flex justify-between items-center text-sm py-1 border-b border-[var(--border-subtle)]">
                         <FlagBadge flag={f.flag} />
                         <span className="text-[var(--text-muted)] mx-3">{f.count}</span>
                         <span className="font-semibold tabular-nums">{fmt(f.total_amount)}</span>
@@ -686,12 +729,12 @@ export default function Home() {
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
                 <h3 className="font-semibold mb-3">Suspicious Breakdown</h3>
                 <div className="space-y-1">
                   {stats.suspicious_breakdown.length === 0 ? <p className="text-sm text-[var(--text-muted)]">None detected</p> :
                     stats.suspicious_breakdown.map((s, i) => (
-                      <div key={i} className="flex justify-between items-center text-sm py-1 border-b border-[var(--border)]">
+                      <div key={i} className="flex justify-between items-center text-sm py-1 border-b border-[var(--border-subtle)]">
                         <span className="flex-1 truncate">{s.category}</span>
                         <FlagBadge flag={s.flag} />
                         <span className="text-[var(--text-muted)] mx-2">{s.count}</span>
@@ -700,7 +743,7 @@ export default function Home() {
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
                 <h3 className="font-semibold mb-3">By Account</h3>
                 <div className="max-h-72 overflow-y-auto">
                   {!stats.by_account || stats.by_account.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
@@ -736,14 +779,17 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* ═══ Upload ═══ */}
         {tab === "upload" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">Upload Transactions</h2>
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+          <div className="p-6 lg:p-8 max-w-[1600px]">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Upload Transactions</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Import CSV files with transaction data</p>
+            </div>
+            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
               {!csvFile ? (
                 <div
                   className="border-2 border-dashed border-[var(--border)] rounded-lg p-12 text-center cursor-pointer hover:border-indigo-400 transition-colors"
@@ -778,43 +824,46 @@ export default function Home() {
                     <div className="overflow-x-auto mb-4">
                       <table className="w-full text-xs border border-[var(--border)] rounded">
                         <thead><tr>{csvHeaders.map(h => <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] px-2 py-1 text-left">{h}</th>)}</tr></thead>
-                        <tbody>{csvPreview.map((row, i) => <tr key={i}>{csvHeaders.map(h => <td key={h} className="px-2 py-1 border-b border-[var(--border)]">{row[h]}</td>)}</tr>)}</tbody>
+                        <tbody>{csvPreview.map((row, i) => <tr key={i}>{csvHeaders.map(h => <td key={h} className="px-2 py-1 border-b border-[var(--border-subtle)]">{row[h]}</td>)}</tr>)}</tbody>
                       </table>
                       <p className="text-xs text-[var(--text-muted)] mt-1">Showing first {csvPreview.length} rows</p>
                     </div>
                   )}
                   <div className="flex gap-3">
-                    <button onClick={confirmUpload} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-md text-sm font-medium">Upload & Import</button>
+                    <button onClick={confirmUpload} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded-md text-sm font-medium">Upload & Import</button>
                     <button onClick={() => { setCsvFile(null); setCsvHeaders([]); setCsvPreview([]); setUploadStatus(null); }} className="px-4 py-2 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-hover)]">Cancel</button>
                   </div>
                 </>
               )}
               <StatusMsg status={uploadStatus} />
             </div>
-          </>
+          </div>
         )}
 
         {/* ═══ All Transactions ═══ */}
         {tab === "transactions" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">All Transactions</h2>
+          <div className="p-6 lg:p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Transactions</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">View, filter, and manage all transactions</p>
+            </div>
             <div className="flex flex-wrap gap-2 mb-4 items-center">
-              <input placeholder="Search..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 w-60"
+              <input placeholder="Search..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-60"
                 value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
                 onKeyDown={e => { if (e.key === "Enter") loadTransactions(); }} />
-              <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5"
+              <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
                 value={filters.category} onChange={e => setFilters(p => ({ ...p, category: e.target.value }))}>
                 <option value="">All Categories</option>
                 {categories.map(c => <option key={c.id} value={c.name}>{c.is_suspicious ? "⚠ " : ""}{c.name}</option>)}
               </select>
-              <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5"
+              <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
                 value={filters.flag} onChange={e => setFilters(p => ({ ...p, flag: e.target.value }))}>
                 <option value="">All Flags</option>
                 {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f}</option>)}
               </select>
-              <input type="number" placeholder="Min $" className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5 w-24"
+              <input type="number" placeholder="Min $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
-              <input type="number" placeholder="Max $" className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5 w-24"
+              <input type="number" placeholder="Max $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
               <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Filter</button>
               <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Clear</button>
@@ -823,15 +872,15 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">
                 <span className="text-sm font-semibold">{selectedIds.size} selected</span>
                 <div className="h-4 w-px bg-[var(--border)]" />
-                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
+                <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)]" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
                   <option value="">Set Category...</option>
                   {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
-                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
+                <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)]" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
                   <option value="">Set Flag...</option>
                   {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
                 </select>
-                <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded text-sm">Apply</button>
+                <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
                 <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
                   className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded text-sm font-medium">
@@ -845,7 +894,7 @@ export default function Home() {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-[var(--border)] rounded-lg">
+              <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
                 <thead>
                   <tr>
                     <th className="bg-[var(--bg-hover)] px-3 py-2"><input type="checkbox" onChange={toggleAll} checked={selectedIds.size === transactions.length && transactions.length > 0} /></th>
@@ -876,7 +925,7 @@ export default function Home() {
                         : dirLower ? "text-red-400 font-semibold" : "";
                     const expanded = expandedRows.has(t.id);
                     return (
-                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)] align-top">
+                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)] align-top">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 min-w-[200px]">
@@ -918,20 +967,23 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-          </>
+          </div>
         )}
 
         {/* ═══ Categorize ═══ */}
         {tab === "categorize" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">AI Categorization</h2>
+          <div className="p-6 lg:p-8 max-w-[1200px]">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">AI Categorization</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Configure AI and run bulk categorization</p>
+            </div>
 
             {/* Investigation Context */}
             <div className="bg-[var(--bg-card)] border border-amber-500/30 rounded-lg p-5 mb-6">
               <h3 className="font-semibold mb-2 text-amber-400">Investigation Context</h3>
               <p className="text-xs text-[var(--text-muted)] mb-2">Describe the situation — what happened, who is involved, which accounts are suspect. This context is sent to ALL AI features (categorization, analyst chat, party extraction).</p>
               <textarea
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm min-h-[100px] mb-2"
+                className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm min-h-[100px] mb-2"
                 placeholder="e.g. 'We suspect that an employee named X diverted funds from accounts A and B to personal accounts. The fraud may have started around March 2024. Authorized vendors include Company Y and Company Z. Any transfers to unknown personal accounts should be flagged...'"
                 value={investigationContext}
                 onChange={e => {
@@ -942,17 +994,17 @@ export default function Home() {
               <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. Persists across sessions.</p>
             </div>
 
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 space-y-5">
-              <div className="border border-[var(--border)] rounded-lg p-4">
+            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 space-y-5">
+              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 1: Manual Categorization</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-2">Go to All Transactions and manually categorize at least 3 transactions. The more you categorize, the better the AI will perform.</p>
                 <p className="text-sm text-[var(--text-muted)]">{stats?.categorized || 0} categorized, {stats?.uncategorized || 0} remaining</p>
               </div>
-              <div className="border border-[var(--border)] rounded-lg p-4">
+              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">AI Instructions</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-2">Give the AI context about your investigation. These instructions are used by all AI categorization (bulk, per-row, and analyst chat).</p>
                 <textarea
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm min-h-[80px] mb-2"
+                  className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm min-h-[80px] mb-2"
                   placeholder="e.g. 'Any transfer to account X is suspicious. Payments to John Doe are authorized vendor payments. Amounts over $50k to unknown parties should be flagged critical...'"
                   value={aiInstructions}
                   onChange={e => {
@@ -962,12 +1014,12 @@ export default function Home() {
                 />
                 <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. These instructions persist across sessions.</p>
               </div>
-              <div className="border border-[var(--border)] rounded-lg p-4">
+              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-3">AI will propose categorizations for review. You can accept/reject each one before applying.</p>
                 <div className="flex flex-wrap gap-2 items-center">
                   <button onClick={runAiPreview} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
-                    className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
+                    className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
                     {aiLoading && !aiPreview ? <><span className="spinner mr-2"></span>Analyzing...</> : "Generate Proposals"}
                   </button>
                   {aiPreview && aiPreview.length > 0 && (
@@ -993,7 +1045,7 @@ export default function Home() {
 
                 {/* Preview table */}
                 {aiPreview && aiPreview.length > 0 && (
-                  <div className="mt-4 border border-[var(--border)] rounded-lg overflow-hidden">
+                  <div className="mt-4 ring-1 ring-[var(--border)] rounded-xl overflow-hidden">
                     <div className="bg-[var(--bg-hover)] px-3 py-2 flex items-center justify-between">
                       <span className="text-xs font-medium">{aiPreview.length} proposals — {aiPreviewAccepted.size} accepted</span>
                       <div className="flex gap-2">
@@ -1053,7 +1105,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <div className="border border-[var(--border)] rounded-lg p-4">
+              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 3: Review Results</h3>
                 <p className="text-sm text-[var(--text-muted)]">
                   Review AI categorizations in <button onClick={() => setTab("transactions")} className="text-indigo-400 underline">Transactions</button> tab.
@@ -1061,20 +1113,23 @@ export default function Home() {
                 </p>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* ═══ Suspicious ═══ */}
         {tab === "suspicious" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">Suspicious Activity Report</h2>
+          <div className="p-6 lg:p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Suspicious Activity</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Flagged transactions requiring investigation</p>
+            </div>
             {suspiciousTxns.length > 0 && (
               <div className="p-4 rounded-lg mb-4 bg-red-500/10 border border-red-500 text-center font-semibold">
                 ⚠ {suspiciousTxns.length} suspicious transactions — Total: {fmt(suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0))}
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-[var(--border)] rounded-lg">
+              <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
                 <thead>
                   <tr>
                     {["Date", "Description", "Amount", "Direction", "Symbol", "Security", "Qty", "Account", "Strategy", "Category", "Flag", "AI Notes", "Actions"].map(h => (
@@ -1086,7 +1141,7 @@ export default function Home() {
                   {suspiciousTxns.length === 0 ? (
                     <tr><td colSpan={13} className="text-center text-[var(--text-muted)] py-8">No suspicious transactions found. Run AI categorization to detect fraud patterns.</td></tr>
                   ) : suspiciousTxns.map(t => (
-                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
+                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)]">
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
@@ -1118,7 +1173,7 @@ export default function Home() {
               });
               const totalSusp = suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0);
               return (
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mt-4">
+                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mt-4">
                   <h3 className="font-semibold mb-3">Investigation Summary</h3>
                   <table className="w-full text-sm">
                     <thead><tr>
@@ -1128,7 +1183,7 @@ export default function Home() {
                     </tr></thead>
                     <tbody>
                       {Object.entries(byCategory).map(([cat, d]) => (
-                        <tr key={cat} className="border-b border-[var(--border)]">
+                        <tr key={cat} className="border-b border-[var(--border-subtle)]">
                           <td className="px-3 py-2">{cat}</td>
                           <td className="px-3 py-2">{d.count}</td>
                           <td className="px-3 py-2 text-red-400 font-semibold">{fmt(d.total)}</td>
@@ -1144,23 +1199,26 @@ export default function Home() {
                 </div>
               );
             })()}
-          </>
+          </div>
         )}
 
         {/* ═══ Analytics ═══ */}
         {tab === "analytics" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-6">Analytics & Fund Flow</h2>
+          <div className="p-6 lg:p-8 max-w-[1600px]">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Analytics & Fund Flow</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Charts, cluster detection, and fraud impact analysis</p>
+            </div>
 
             {/* AI Party Extraction */}
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">AI Party Identification</h3>
                   <p className="text-sm text-[var(--text-muted)] mt-1">Use AI to read transaction descriptions and identify who sent or received money.</p>
                 </div>
                 <button onClick={runPartyExtraction} disabled={partyLoading}
-                  className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-md text-sm font-medium whitespace-nowrap">
+                  className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 rounded-md text-sm font-medium whitespace-nowrap">
                   {partyLoading ? <><span className="spinner mr-2"></span>Running...</> : "Extract Parties"}
                 </button>
               </div>
@@ -1168,7 +1226,7 @@ export default function Home() {
             </div>
 
             {/* Merge Counterparties */}
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">Merge Counterparties</h3>
@@ -1181,7 +1239,7 @@ export default function Home() {
                   </button>
                   {autoMergePreview && autoMergePreview.length > 0 && (
                     <button onClick={() => runAutoMerge(false)} disabled={autoMergeLoading}
-                      className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-md text-xs font-medium text-white">
+                      className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 rounded-md text-xs font-medium text-white">
                       Apply All ({autoMergePreview.length})
                     </button>
                   )}
@@ -1209,7 +1267,7 @@ export default function Home() {
                   <div className="bg-[var(--bg)] px-3 py-2 flex justify-end gap-2 border-t border-[var(--border)]">
                     <button onClick={() => setAutoMergePreview(null)} className="text-xs text-[var(--text-muted)] hover:text-white px-2 py-1 border border-[var(--border)] rounded">Dismiss</button>
                     <button onClick={() => runAutoMerge(false)} disabled={autoMergeLoading}
-                      className="text-xs px-3 py-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded font-medium">
+                      className="text-xs px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 rounded font-medium">
                       Apply All Merges
                     </button>
                   </div>
@@ -1218,21 +1276,21 @@ export default function Home() {
 
               {/* Manual merge */}
               <div className="flex gap-2 mb-3 items-center">
-                <input placeholder="Search counterparties..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 w-64"
+                <input placeholder="Search counterparties..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-64"
                   value={mergeSearch} onChange={e => setMergeSearch(e.target.value)} />
                 <span className="text-xs text-[var(--text-muted)]">{mergeSelected.size} selected</span>
                 {mergeSelected.size > 0 && (
                   <button onClick={() => { setMergeSelected(new Set()); setMergeCanonical(""); }} className="text-xs text-indigo-400 hover:underline">Clear</button>
                 )}
               </div>
-              <div className="max-h-[250px] overflow-y-auto border border-[var(--border)] rounded-lg mb-3">
+              <div className="max-h-[250px] overflow-y-auto ring-1 ring-[var(--border)] rounded-xl mb-3">
                 {counterparties.length === 0 ? (
                   <p className="text-sm text-[var(--text-muted)] p-4 text-center">No counterparties found. Run AI Party Identification first.</p>
                 ) : counterparties
                     .filter(c => !mergeSearch || c.name.toLowerCase().includes(mergeSearch.toLowerCase()))
                     .map(c => (
                   <label key={c.name}
-                    className={`flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-hover)] cursor-pointer border-b border-[var(--border)] last:border-0 text-sm ${mergeSelected.has(c.name) ? "bg-indigo-500/10" : ""}`}>
+                    className={`flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-hover)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0 text-sm ${mergeSelected.has(c.name) ? "bg-indigo-500/10" : ""}`}>
                     <input type="checkbox" checked={mergeSelected.has(c.name)} onChange={() => toggleMergeSelect(c.name)} />
                     <span className="flex-1 truncate">{c.name}</span>
                     <span className="text-[var(--text-muted)] text-xs">{c.count} txns</span>
@@ -1243,15 +1301,15 @@ export default function Home() {
               {mergeSelected.size >= 2 && (
                 <div className="flex gap-2 items-center">
                   <label className="text-sm text-[var(--text-muted)] whitespace-nowrap">Merge into:</label>
-                  <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5 flex-1"
+                  <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] flex-1"
                     value={mergeCanonical} onChange={e => setMergeCanonical(e.target.value)}>
                     {[...mergeSelected].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                   <span className="text-[var(--text-muted)]">or</span>
-                  <input placeholder="Custom name..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 flex-1"
+                  <input placeholder="Custom name..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] flex-1"
                     value={[...mergeSelected].includes(mergeCanonical) ? "" : mergeCanonical}
                     onChange={e => setMergeCanonical(e.target.value)} />
-                  <button onClick={mergeCounterparties} className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded text-sm font-medium whitespace-nowrap">
+                  <button onClick={mergeCounterparties} className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm font-medium whitespace-nowrap">
                     Merge ({mergeSelected.size})
                   </button>
                 </div>
@@ -1264,7 +1322,7 @@ export default function Home() {
             ) : (
               <>
                 {/* Cluster Detection Config */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 mb-6">
+                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-sm">Withdrawal Cluster Detection</h3>
                     <button onClick={() => setShowClusters(!showClusters)}
@@ -1306,7 +1364,7 @@ export default function Home() {
                 </div>
 
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-4">Red dots = withdrawal clusters. Orange highlighted zones = AI-flagged regions.</p>
                   {analyticsData.balance_over_time.length === 0 ? (
@@ -1369,7 +1427,7 @@ export default function Home() {
                 </div>
 
                 {/* Chart 2: Balance Over Time by Account */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
                   <h3 className="font-semibold mb-1">Balance Over Time by Account</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-3">Track individual accounts — identify which account was drained.</p>
                   {Object.keys(analyticsData.balance_by_account).length === 0 ? (
@@ -1454,7 +1512,7 @@ export default function Home() {
                 </div>
 
                 {/* Chart 3: Counterparty Breakdown */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
                   <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party.</p>
                   {analyticsData.transaction_counts.length === 0 ? (
@@ -1484,7 +1542,7 @@ export default function Home() {
                               return partySort.desc ? String(vb).localeCompare(String(va)) : String(va).localeCompare(String(vb));
                             });
                           return (
-                            <table className="w-full text-sm border border-[var(--border)] rounded-lg">
+                            <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
                               <thead><tr>
                                 {cols.map(([key, label]) => (
                                   <th key={key}
@@ -1496,7 +1554,7 @@ export default function Home() {
                               </tr></thead>
                               <tbody>
                                 {sorted.map((p: any) => (
-                                  <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border)]">
+                                  <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)]">
                                     <td className="px-3 py-2 font-medium">{p.party}</td>
                                     <td className="px-3 py-2 text-green-400">{p.deposits}</td>
                                     <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
@@ -1589,12 +1647,12 @@ export default function Home() {
                       <>
                         {/* Summary cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 text-center">
+                          <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Stolen</div>
                             <div className="text-lg font-bold text-red-400">{fmt(totalStolen)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">{fraudWithPV.length} transactions</div>
                           </div>
-                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 text-center">
+                          <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
                             <div className="text-lg font-bold text-red-400">{fmt(totalPV)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">at {fraudReturnRate}% annual</div>
@@ -1628,7 +1686,7 @@ export default function Home() {
 
                         {/* Detail table */}
                         <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-xs border border-[var(--border)] rounded-lg">
+                          <table className="w-full text-xs ring-1 ring-[var(--border)] rounded-xl">
                             <thead><tr>
                               {["Date", "Description", "Counterparty", "Account", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
                                 <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
@@ -1664,24 +1722,27 @@ export default function Home() {
 
               </>
             )}
-          </>
+          </div>
         )}
       </main>
 
       {/* AI Chat Toggle Button (fixed) */}
       <button onClick={() => setChatOpen(!chatOpen)}
-        className={`fixed bottom-6 z-40 px-4 py-3 rounded-full shadow-lg text-sm font-medium transition-all ${
-          chatOpen ? "right-[420px] bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-muted)] hover:text-white" : "right-6 bg-indigo-500 hover:bg-indigo-400 text-white"
+        className={`fixed bottom-6 z-40 px-5 py-3 rounded-2xl shadow-2xl text-[13px] font-semibold transition-all duration-200 flex items-center gap-2 ${
+          chatOpen ? "right-[432px] bg-[var(--bg-elevated)] ring-1 ring-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]" : "right-6 bg-indigo-500 hover:bg-indigo-400 text-white hover:shadow-indigo-500/25"
         }`}>
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={chatOpen ? "M6 18L18 6M6 6l12 12" : "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"} />
+        </svg>
         {chatOpen ? "Close" : "AI Analyst"}
         {aiAnnotations.length > 0 && !chatOpen && (
-          <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-[10px] bg-amber-500 text-black rounded-full">{aiAnnotations.length}</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] bg-amber-400 text-black rounded-full font-bold">{aiAnnotations.length}</span>
         )}
       </button>
 
       {/* AI Chat Sidebar */}
-      <div className={`fixed top-0 right-0 h-full w-[400px] bg-[var(--bg-card)] border-l border-[var(--border)] z-30 flex flex-col transition-transform duration-300 ${chatOpen ? "translate-x-0" : "translate-x-full"}`}>
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+      <div className={`fixed top-0 right-0 h-full w-[420px] bg-[var(--bg-elevated)] border-l border-[var(--border)] z-30 flex flex-col transition-transform duration-300 shadow-2xl ${chatOpen ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-sm">AI Forensic Analyst</h3>
             <p className="text-[10px] text-[var(--text-muted)]">Analyzes data & annotates charts</p>
@@ -1704,7 +1765,7 @@ export default function Home() {
               <div className="flex flex-col gap-2">
                 {["Where do you think fraud started?", "Which counterparties look suspicious?", "Analyze the withdrawal patterns", "When did the balance start dropping?", "Summarize the overall financial picture"].map(q => (
                   <button key={q} onClick={() => setChatInput(q)}
-                    className="text-xs px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors text-left">
+                    className="text-xs px-3 py-2 bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors text-left">
                     {q}
                   </button>
                 ))}
@@ -1718,7 +1779,7 @@ export default function Home() {
                   {msg.text}
                 </div>
               ) : (
-                <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-3 text-sm">
+                <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-4 py-3 text-sm">
                   <div className="prose prose-invert prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-400">
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
@@ -1747,7 +1808,7 @@ export default function Home() {
             </div>
           ))}
           {chatLoading && (
-            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-3">
+            <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-4 py-3">
               <span className="spinner"></span>
             </div>
           )}
@@ -1760,9 +1821,9 @@ export default function Home() {
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
               placeholder="Ask about the data..."
-              className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm" />
+              className="flex-1 bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm" />
             <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-lg text-sm font-medium">
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 rounded-lg text-sm font-medium">
               Send
             </button>
           </div>
@@ -1772,10 +1833,10 @@ export default function Home() {
       {/* Edit Modal */}
       {editTxn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setEditTxn(null)} />
-          <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-lg font-semibold mb-2">Edit Transaction</h3>
-            <div className="text-xs text-[var(--text-muted)] mb-4 p-2 bg-[var(--bg)] rounded border border-[var(--border)]">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setEditTxn(null)} />
+          <div className="relative bg-[var(--bg-elevated)] ring-1 ring-[var(--border)] rounded-2xl p-6 w-[520px] max-w-[90vw] shadow-2xl">
+            <h3 className="text-base font-semibold mb-3">Edit Transaction</h3>
+            <div className="text-xs text-[var(--text-muted)] mb-5 p-3 bg-[var(--bg)] rounded-xl ring-1 ring-[var(--border)]">
               <div><strong>Date:</strong> {editTxn.date} | <strong>Amount:</strong> {fmt(editTxn.amount)}</div>
               <div className="mt-1"><strong>Description:</strong> {editTxn.description}</div>
               {editTxn.security && <div className="mt-1"><strong>Security:</strong> {editTxn.security}</div>}
@@ -1783,7 +1844,7 @@ export default function Home() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Category</label>
-                <select className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                <select className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   value={editForm.category} onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}>
                   <option value="">Select...</option>
                   {categories.map(c => <option key={c.id} value={c.name}>{c.is_suspicious ? "⚠ " : ""}{c.name}</option>)}
@@ -1791,12 +1852,12 @@ export default function Home() {
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Subcategory</label>
-                <input className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   value={editForm.subcategory} onChange={e => setEditForm(p => ({ ...p, subcategory: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Flag</label>
-                <select className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                <select className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   value={editForm.flag} onChange={e => setEditForm(p => ({ ...p, flag: e.target.value }))}>
                   <option value="">None</option>
                   {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
@@ -1804,7 +1865,7 @@ export default function Home() {
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Direction</label>
-                <select className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                <select className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   value={editForm.direction} onChange={e => setEditForm(p => ({ ...p, direction: e.target.value }))}>
                   <option value="">Unknown</option>
                   <option value="Contribution">Contribution (Incoming)</option>
@@ -1814,19 +1875,19 @@ export default function Home() {
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Counterparty</label>
-                <input className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   placeholder="Who sent or received the money"
                   value={editForm.counterparty} onChange={e => setEditForm(p => ({ ...p, counterparty: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Notes</label>
-                <textarea className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm" rows={3}
+                <textarea className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]" rows={3}
                   value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEditTxn(null)} className="px-4 py-2 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Cancel</button>
-              <button onClick={saveEdit} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 rounded text-sm font-medium">Save</button>
+              <button onClick={saveEdit} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm font-medium">Save</button>
             </div>
           </div>
         </div>

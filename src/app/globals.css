@@ -3,42 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0f1117;
-  --bg-card: #1a1d27;
-  --bg-hover: #242836;
-  --border: #2a2e3d;
-  --text: #e4e4e7;
-  --text-muted: #8b8d98;
+  --bg: #09090b;
+  --bg-elevated: #111113;
+  --bg-card: #18181b;
+  --bg-hover: #1f1f23;
+  --bg-active: #27272a;
+  --border: #27272a;
+  --border-subtle: #1f1f23;
+  --text: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
   --primary: #6366f1;
   --primary-hover: #818cf8;
+  --primary-subtle: rgba(99, 102, 241, 0.1);
   --danger: #ef4444;
   --warning: #f59e0b;
   --success: #22c55e;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --sidebar-w: 240px;
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* { box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Spinner */
+/* ── Spinner ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
-  display: inline-block; width: 18px; height: 18px;
+  display: inline-block; width: 16px; height: 16px;
   border: 2px solid var(--border); border-top-color: var(--primary);
-  border-radius: 50%; animation: spin 0.6s linear infinite;
+  border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle;
 }
 
-/* Prose overrides for AI chat markdown */
-.prose-invert h1, .prose-invert h2, .prose-invert h3, .prose-invert h4 { color: #e4e4e7; }
-.prose-invert p { color: #c4c4c8; }
-.prose-invert li { color: #c4c4c8; }
-.prose-invert blockquote { border-left-color: var(--primary); color: var(--text-muted); }
-.prose-invert pre { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; overflow-x: auto; }
-.prose-invert code { font-size: 0.8em; }
-.prose-invert table { border-collapse: collapse; width: 100%; }
-.prose-invert th, .prose-invert td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; font-size: 0.8rem; }
-.prose-invert th { background: var(--bg-hover); }
+/* ── Focus ring ── */
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary);
+}
+
+/* ── Markdown / Prose ── */
+.prose-invert { color: var(--text-secondary); }
+.prose-invert h1, .prose-invert h2, .prose-invert h3, .prose-invert h4 { color: var(--text); font-weight: 600; }
+.prose-invert p { color: var(--text-secondary); margin: 0.5rem 0; }
+.prose-invert li { color: var(--text-secondary); }
+.prose-invert strong { color: var(--text); }
+.prose-invert a { color: var(--primary); }
+.prose-invert blockquote { border-left: 2px solid var(--primary); color: var(--text-muted); padding-left: 1rem; margin: 0.75rem 0; }
+.prose-invert pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem; overflow-x: auto; font-size: 0.8rem; }
+.prose-invert code { font-size: 0.85em; background: var(--bg); padding: 0.1em 0.35em; border-radius: 4px; color: var(--primary-hover); }
+.prose-invert pre code { background: none; padding: 0; }
+.prose-invert table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+.prose-invert th, .prose-invert td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+.prose-invert th { background: var(--bg-hover); color: var(--text-muted); font-weight: 500; }
+
+/* ── Recharts tooltip ── */
+.recharts-default-tooltip { border-radius: var(--radius) !important; }
