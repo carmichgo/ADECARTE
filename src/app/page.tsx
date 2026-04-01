@@ -399,6 +399,40 @@ export default function Home() {
     setBulkCategory(""); setBulkFlag("");
   };
 
+  const [bulkAiLoading, setBulkAiLoading] = useState(false);
+
+  const bulkAiCategorize = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkAiLoading(true);
+    const ids = [...selectedIds];
+    let done = 0;
+    for (const id of ids) {
+      try {
+        await fetch("/api/ai/categorize-single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext }),
+        });
+        done++;
+      } catch {}
+    }
+    setBulkAiLoading(false);
+    loadTransactions();
+    loadStats();
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} transactions? This cannot be undone.`)) return;
+    await fetch("/api/transactions/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [...selectedIds] }),
+    });
+    loadTransactions();
+    loadStats();
+  };
+
   // ── AI ───
   const runAi = async () => {
     setAiLoading(true);
@@ -790,8 +824,9 @@ export default function Home() {
               </table>
             </div>
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-3 mt-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg">
-                <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <div className="flex flex-wrap items-center gap-3 mt-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg">
+                <span className="text-sm font-semibold">{selectedIds.size} selected</span>
+                <div className="h-4 w-px bg-[var(--border)]" />
                 <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
                   <option value="">Set Category...</option>
                   {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -801,6 +836,16 @@ export default function Home() {
                   {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded text-sm">Apply</button>
+                <div className="h-4 w-px bg-[var(--border)]" />
+                <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
+                  className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded text-sm font-medium">
+                  {bulkAiLoading ? <><span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> AI...</> : `AI Categorize (${selectedIds.size})`}
+                </button>
+                <div className="h-4 w-px bg-[var(--border)]" />
+                <button onClick={bulkDelete}
+                  className="px-3 py-1 bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 rounded text-sm font-medium">
+                  Delete ({selectedIds.size})
+                </button>
               </div>
             )}
           </>
