@@ -46,6 +46,9 @@ export default function Home() {
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
+  const [aiPreview, setAiPreview] = useState<any[] | null>(null);
+  const [aiPreviewAccepted, setAiPreviewAccepted] = useState<Set<number>>(new Set());
+  const [aiUndoSnapshot, setAiUndoSnapshot] = useState<any[] | null>(null);
   const [aiInstructions, setAiInstructions] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("adecarte_ai_instructions") || "";
     return "";
@@ -434,28 +437,71 @@ export default function Home() {
   };
 
   // ── AI ───
-  const runAi = async () => {
+  const runAiPreview = async () => {
     setAiLoading(true);
+    setAiPreview(null);
     setAiStatus({ type: "info", msg: "AI is analyzing transactions. This may take a moment..." });
     try {
-      const res = await fetch("/api/ai/categorize", {
+      const res = await fetch("/api/ai/categorize-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instructions: aiInstructions, context: investigationContext }),
       });
       const text = await res.text();
       let data;
-      try { data = JSON.parse(text); } catch { data = { error: `Server error (${res.status}): ${text.slice(0, 200)}` }; }
-      if (data.error) setAiStatus({ type: "error", msg: data.error });
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (data.error) { setAiStatus({ type: "error", msg: data.error }); }
+      else if (data.preview && data.preview.length > 0) {
+        setAiPreview(data.preview);
+        setAiPreviewAccepted(new Set(data.preview.map((p: any) => p.id)));
+        const flagged = data.preview.filter((r: any) => r.flag === "suspicious" || r.flag === "critical").length;
+        setAiStatus({ type: "success", msg: `${data.preview.length} proposals ready. ${flagged} flagged suspicious/critical. Review below and apply.` });
+      } else {
+        setAiStatus({ type: "success", msg: data.message || "No transactions to categorize." });
+      }
+    } catch (err: any) { setAiStatus({ type: "error", msg: err.message }); }
+    setAiLoading(false);
+  };
+
+  const applyAiPreview = async () => {
+    if (!aiPreview) return;
+    const accepted = aiPreview.filter(p => aiPreviewAccepted.has(p.id));
+    if (accepted.length === 0) { setAiStatus({ type: "error", msg: "No proposals selected to apply." }); return; }
+    setAiLoading(true);
+    setAiStatus({ type: "info", msg: `Applying ${accepted.length} categorizations...` });
+    try {
+      const res = await fetch("/api/ai/categorize-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposals: accepted, action: "apply" }),
+      });
+      const data = await res.json();
+      if (data.error) { setAiStatus({ type: "error", msg: data.error }); }
       else {
-        const flagged = data.results?.filter((r: any) => r.flag === "suspicious" || r.flag === "critical").length || 0;
-        setAiStatus({
-          type: "success",
-          msg: `Categorized ${data.categorized} transactions.${flagged > 0 ? ` ⚠ ${flagged} flagged as suspicious/critical!` : ""}`,
-        });
+        setAiUndoSnapshot(data.snapshot);
+        setAiPreview(null);
+        setAiStatus({ type: "success", msg: `${data.applied} categorizations applied. Click "Undo" to revert.` });
         loadStats();
       }
-    } catch (err: any) { setAiStatus({ type: "error", msg: "Request failed: " + err.message }); }
+    } catch (err: any) { setAiStatus({ type: "error", msg: err.message }); }
+    setAiLoading(false);
+  };
+
+  const undoAiCategorize = async () => {
+    if (!aiUndoSnapshot) return;
+    setAiLoading(true);
+    setAiStatus({ type: "info", msg: "Reverting..." });
+    try {
+      const res = await fetch("/api/ai/categorize-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposals: aiUndoSnapshot, action: "undo" }),
+      });
+      const data = await res.json();
+      setAiUndoSnapshot(null);
+      setAiStatus({ type: "success", msg: data.message });
+      loadStats();
+    } catch (err: any) { setAiStatus({ type: "error", msg: err.message }); }
     setAiLoading(false);
   };
 
@@ -894,12 +940,94 @@ export default function Home() {
               </div>
               <div className="border border-[var(--border)] rounded-lg p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
-                <p className="text-sm text-[var(--text-muted)] mb-3">Click below to let AI categorize remaining transactions using your manual labels and instructions as guidance.</p>
-                <button onClick={runAi} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
-                  className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
-                  {aiLoading ? <><span className="spinner mr-2"></span>Running AI...</> : "Run AI Categorization"}
-                </button>
+                <p className="text-sm text-[var(--text-muted)] mb-3">AI will propose categorizations for review. You can accept/reject each one before applying.</p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <button onClick={runAiPreview} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
+                    className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
+                    {aiLoading && !aiPreview ? <><span className="spinner mr-2"></span>Analyzing...</> : "Generate Proposals"}
+                  </button>
+                  {aiPreview && aiPreview.length > 0 && (
+                    <>
+                      <button onClick={applyAiPreview} disabled={aiLoading || aiPreviewAccepted.size === 0}
+                        className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-md font-medium text-white">
+                        {aiLoading ? <><span className="spinner mr-2"></span>Applying...</> : `Apply (${aiPreviewAccepted.size}/${aiPreview.length})`}
+                      </button>
+                      <button onClick={() => { setAiPreview(null); setAiStatus(null); }}
+                        className="px-4 py-2.5 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-hover)]">
+                        Discard
+                      </button>
+                    </>
+                  )}
+                  {aiUndoSnapshot && (
+                    <button onClick={undoAiCategorize} disabled={aiLoading}
+                      className="px-4 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded-md font-medium text-sm">
+                      Undo Last Apply ({aiUndoSnapshot.length} txns)
+                    </button>
+                  )}
+                </div>
                 <StatusMsg status={aiStatus} />
+
+                {/* Preview table */}
+                {aiPreview && aiPreview.length > 0 && (
+                  <div className="mt-4 border border-[var(--border)] rounded-lg overflow-hidden">
+                    <div className="bg-[var(--bg-hover)] px-3 py-2 flex items-center justify-between">
+                      <span className="text-xs font-medium">{aiPreview.length} proposals — {aiPreviewAccepted.size} accepted</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setAiPreviewAccepted(new Set(aiPreview.map((p: any) => p.id)))}
+                          className="text-[10px] text-indigo-400 hover:underline">Select All</button>
+                        <button onClick={() => setAiPreviewAccepted(new Set())}
+                          className="text-[10px] text-[var(--text-muted)] hover:underline">Deselect All</button>
+                      </div>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-[var(--bg)]">
+                            <th className="px-2 py-1.5 text-left w-8"></th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Date</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Description</th>
+                            <th className="px-2 py-1.5 text-right text-[var(--text-muted)]">Amount</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Category</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Direction</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Flag</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Confidence</th>
+                            <th className="px-2 py-1.5 text-left text-[var(--text-muted)]">Reasoning</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {aiPreview.map((p: any) => {
+                            const accepted = aiPreviewAccepted.has(p.id);
+                            return (
+                              <tr key={p.id} className={`border-t border-[var(--border)] ${accepted ? "" : "opacity-40"}`}>
+                                <td className="px-2 py-1.5">
+                                  <input type="checkbox" checked={accepted}
+                                    onChange={() => {
+                                      const next = new Set(aiPreviewAccepted);
+                                      accepted ? next.delete(p.id) : next.add(p.id);
+                                      setAiPreviewAccepted(next);
+                                    }} />
+                                </td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{p.original?.date || "-"}</td>
+                                <td className="px-2 py-1.5 max-w-[200px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
+                                <td className={`px-2 py-1.5 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(p.original?.amount)}</td>
+                                <td className="px-2 py-1.5 font-medium">{p.category}</td>
+                                <td className="px-2 py-1.5">
+                                  <span className={
+                                    p.direction === "Internal Transfer" ? "text-amber-400" :
+                                    p.direction === "Contribution" ? "text-green-400" : "text-red-400"
+                                  }>{p.direction}</span>
+                                </td>
+                                <td className="px-2 py-1.5"><FlagBadge flag={p.flag} /></td>
+                                <td className="px-2 py-1.5 tabular-nums">{((p.confidence || 0) * 100).toFixed(0)}%</td>
+                                <td className="px-2 py-1.5 max-w-[200px] truncate text-[var(--text-muted)]" title={p.reasoning}>{p.reasoning}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="border border-[var(--border)] rounded-lg p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 3: Review Results</h3>
