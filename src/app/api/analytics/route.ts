@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       .map(t => ({
         id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
         description: t.description, counterparty: t.counterparty,
-        account: t.account || t.account_name,
+        account: t.account || t.account_name, strategy: t.strategy || "",
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

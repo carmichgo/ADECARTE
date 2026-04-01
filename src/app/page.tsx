@@ -102,6 +102,12 @@ export default function Home() {
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
   const [clusterFlagFilter, setClusterFlagFilter] = useState<string>("all");
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
+  const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_strategy_yields") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
   // AI Chat
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string; annotations?: any[] }>>([]);
@@ -695,10 +701,6 @@ export default function Home() {
     return <div className={`mt-3 px-4 py-3 rounded-xl border text-sm ${styles[status.type] || ""}`}>{status.msg}</div>;
   };
 
-  const SectionCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-    <div className={`bg-white border border-[var(--border)] rounded-2xl p-6 shadow-sm ${className}`}>{children}</div>
-  );
-
   const CollapsibleSection = ({ title, subtitle, defaultOpen = false, children }: { title: string; subtitle?: string; defaultOpen?: boolean; children: React.ReactNode }) => {
     const [open, setOpen] = useState(defaultOpen);
     return (
@@ -1215,17 +1217,32 @@ export default function Home() {
                             <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Reasoning</th>
                           </tr></thead>
                           <tbody>
-                            {aiPreview.map((p: any) => {
+                            {aiPreview.map((p: any, idx: number) => {
                               const accepted = aiPreviewAccepted.has(p.id);
+                              const updateProp = (field: string, value: string) => {
+                                const next = [...aiPreview!]; next[idx] = { ...next[idx], [field]: value }; setAiPreview(next);
+                              };
                               return (
                                 <tr key={p.id} className={`border-t border-[var(--border-subtle)] ${accepted ? "hover:bg-[var(--bg-muted)]" : "opacity-30"}`}>
                                   <td className="px-3 py-2"><input type="checkbox" checked={accepted} onChange={() => { const n = new Set(aiPreviewAccepted); accepted ? n.delete(p.id) : n.add(p.id); setAiPreviewAccepted(n); }} /></td>
                                   <td className="px-3 py-2 whitespace-nowrap">{p.original?.date || "-"}</td>
                                   <td className="px-3 py-2 max-w-[180px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
                                   <td className={`px-3 py-2 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</td>
-                                  <td className="px-3 py-2 font-medium">{p.category}</td>
-                                  <td className="px-3 py-2"><span className={p.direction === "Internal Transfer" ? "text-amber-600" : p.direction === "Contribution" ? "text-emerald-600" : "text-red-600"}>{p.direction}</span></td>
-                                  <td className="px-3 py-2"><FlagBadge flag={p.flag} /></td>
+                                  <td className="px-3 py-1">
+                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs w-full" value={p.category} onChange={e => updateProp("category", e.target.value)}>
+                                      {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="px-3 py-1">
+                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs" value={p.direction} onChange={e => updateProp("direction", e.target.value)}>
+                                      <option value="Contribution">Contribution</option><option value="Withdraw">Withdraw</option><option value="Internal Transfer">Internal Transfer</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-3 py-1">
+                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs" value={p.flag} onChange={e => updateProp("flag", e.target.value)}>
+                                      {["normal","review","suspicious","critical","verified_fraud"].map(f => <option key={f} value={f}>{f}</option>)}
+                                    </select>
+                                  </td>
                                   <td className="px-3 py-2 max-w-[200px] truncate text-[var(--text-muted)]" title={p.reasoning}>{p.reasoning}</td>
                                 </tr>
                               );
@@ -1980,30 +1997,65 @@ export default function Home() {
                     If the verified fraudulent money had stayed invested, what would it be worth today?
                     Only transactions flagged as <span className="text-red-600 font-semibold">VERIFIED FRAUD</span> are included.
                   </p>
-                  <div className="flex items-center gap-3 mb-4">
-                    <label className="text-xs text-[var(--text-muted)]">Annual return rate (%):</label>
-                    <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
-                      onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
-                      className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-20 text-sm" />
-                    <span className="text-xs text-[var(--text-muted)]">({fraudReturnRate}% per year, compounded daily)</span>
-                  </div>
-
                   {(() => {
                     const fraudTxns = analyticsData.fraud_transactions || [];
                     if (fraudTxns.length === 0) {
                       return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
                     }
 
-                    const today = new Date();
-                    const rate = fraudReturnRate / 100;
+                    // Get unique strategies
+                    const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
 
-                    // Calculate present value for each fraud txn
+                    const saveYields = (yields: Record<string, number>) => {
+                      setStrategyYields(yields);
+                      if (typeof window !== "undefined") localStorage.setItem("adecarte_strategy_yields", JSON.stringify(yields));
+                    };
+
+                    const getRate = (strategy: string) => {
+                      const key = strategy || "Default";
+                      return (strategyYields[key] ?? fraudReturnRate) / 100;
+                    };
+
+                    return (<>
+                    {/* Yield config */}
+                    <div className="mb-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
+                        <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
+                          onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
+                      </div>
+                      {strategies.length > 1 && (
+                        <div className="border border-[var(--border)] rounded-xl p-3">
+                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-strategy yield (overrides default):</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {strategies.map(s => (
+                              <div key={s} className="flex items-center gap-2">
+                                <span className="text-xs text-[var(--text-secondary)] truncate flex-1">{s}</span>
+                                <input type="number" min={0} max={100} step={0.5}
+                                  value={strategyYields[s] ?? fraudReturnRate}
+                                  onChange={e => saveYields({ ...strategyYields, [s]: Number(e.target.value) || 0 })}
+                                  className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
+                                <span className="text-[10px] text-[var(--text-muted)]">%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {(() => {
+
+                    const today = new Date();
+
+                    // Calculate present value for each fraud txn using per-strategy rate
                     const fraudWithPV = fraudTxns.map((t: any) => {
                       const txnDate = new Date(t.date);
                       const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const rate = getRate(t.strategy || "Default");
                       const presentValue = t.amount * Math.pow(1 + rate, days / 365);
                       const growth = presentValue - t.amount;
-                      return { ...t, days: Math.round(days), presentValue, growth };
+                      return { ...t, days: Math.round(days), presentValue, growth, usedRate: rate * 100 };
                     });
 
                     const totalStolen = fraudWithPV.reduce((s: number, t: any) => s + t.amount, 0);
@@ -2022,7 +2074,7 @@ export default function Home() {
                         if (fDate <= dDate) {
                           // Compound this fraud amount from its date to current chart date
                           const daysSinceFraud = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
-                          cumFraudPV += fraudWithPV[fraudIdx].amount * Math.pow(1 + rate, daysSinceFraud / 365);
+                          cumFraudPV += fraudWithPV[fraudIdx].amount * Math.pow(1 + getRate(fraudWithPV[fraudIdx].strategy || "Default"), daysSinceFraud / 365);
                           fraudIdx++;
                         } else break;
                       }
@@ -2033,7 +2085,8 @@ export default function Home() {
                         const dDate = new Date(d.raw_date);
                         if (fDate <= dDate) {
                           const daysSince = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
-                          recomputed += fraudWithPV[fi].amount * Math.pow(1 + rate, daysSince / 365);
+                          const fiRate = getRate(fraudWithPV[fi].strategy || "Default");
+                          recomputed += fraudWithPV[fi].amount * Math.pow(1 + fiRate, daysSince / 365);
                         }
                       }
                       return {
@@ -2089,7 +2142,7 @@ export default function Home() {
                         <div className="mt-4 overflow-x-auto">
                           <table className="w-full text-xs border border-[var(--border)] rounded-2xl">
                             <thead><tr>
-                              {["Date", "Description", "Counterparty", "Account", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
+                              {["Date", "Description", "Counterparty", "Account", "Strategy", "Rate", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
                                 <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
                               ))}
                             </tr></thead>
@@ -2100,6 +2153,8 @@ export default function Home() {
                                   <td className="px-2 py-1.5 max-w-[150px] truncate">{t.description || "-"}</td>
                                   <td className="px-2 py-1.5">{t.counterparty || "-"}</td>
                                   <td className="px-2 py-1.5">{t.account || "-"}</td>
+                                  <td className="px-2 py-1.5">{t.strategy || "-"}</td>
+                                  <td className="px-2 py-1.5 tabular-nums">{t.usedRate?.toFixed(1)}%</td>
                                   <td className="px-2 py-1.5 text-red-600 font-medium tabular-nums">{fmt(t.amount)}</td>
                                   <td className="px-2 py-1.5 tabular-nums">{t.days}d</td>
                                   <td className="px-2 py-1.5 text-red-600 font-semibold tabular-nums">{fmt(t.presentValue)}</td>
@@ -2107,7 +2162,7 @@ export default function Home() {
                                 </tr>
                               ))}
                               <tr className="border-t-2 border-red-200 font-bold">
-                                <td className="px-2 py-2" colSpan={4}>TOTAL FRAUD IMPACT</td>
+                                <td className="px-2 py-2" colSpan={6}>TOTAL FRAUD IMPACT</td>
                                 <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalStolen)}</td>
                                 <td className="px-2 py-2"></td>
                                 <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalPV)}</td>
@@ -2118,6 +2173,8 @@ export default function Home() {
                         </div>
                       </>
                     );
+                  })()}
+                  </>)
                   })()}
                 </div>
                 </>)}
