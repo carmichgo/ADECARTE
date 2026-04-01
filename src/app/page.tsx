@@ -583,29 +583,51 @@ export default function Home() {
   const FlagBadge = ({ flag }: { flag: string }) => {
     if (!flag) return null;
     const colors: Record<string, string> = {
-      normal: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
-      review: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-      suspicious: "bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20",
-      critical: "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
-      verified_fraud: "bg-red-600 text-white ring-1 ring-red-500",
+      normal: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+      review: "bg-amber-50 text-amber-700 border border-amber-200",
+      suspicious: "bg-orange-50 text-orange-700 border border-orange-200",
+      critical: "bg-red-50 text-red-700 border border-red-200",
+      verified_fraud: "bg-red-600 text-white border border-red-600",
     };
     return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[flag] || ""}`}>{flag === "verified_fraud" ? "FRAUD" : flag}</span>;
   };
 
   const SourceBadge = ({ src }: { src: string }) => {
     if (!src) return null;
-    const c = src === "manual" ? "bg-indigo-500/10 text-indigo-400" : "bg-amber-500/10 text-amber-400";
+    const c = src === "manual" ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-600";
     return <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c}`}>{src}</span>;
   };
 
   const StatusMsg = ({ status }: { status: { type: string; msg: string } | null }) => {
     if (!status) return null;
     const styles: Record<string, string> = {
-      success: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
-      error: "border-red-500/30 bg-red-500/5 text-red-300",
-      info: "border-indigo-500/30 bg-indigo-500/5 text-indigo-300",
+      success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      error: "border-red-200 bg-red-50 text-red-800",
+      info: "border-blue-200 bg-blue-50 text-blue-800",
     };
-    return <div className={`mt-3 px-4 py-3 rounded-lg border text-sm ${styles[status.type] || ""}`}>{status.msg}</div>;
+    return <div className={`mt-3 px-4 py-3 rounded-xl border text-sm ${styles[status.type] || ""}`}>{status.msg}</div>;
+  };
+
+  const SectionCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+    <div className={`bg-white border border-[var(--border)] rounded-2xl p-6 shadow-sm ${className}`}>{children}</div>
+  );
+
+  const CollapsibleSection = ({ title, subtitle, defaultOpen = false, children }: { title: string; subtitle?: string; defaultOpen?: boolean; children: React.ReactNode }) => {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+      <div className="border border-[var(--border)] rounded-2xl overflow-hidden">
+        <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--bg-muted)] transition-colors text-left">
+          <div>
+            <div className="text-sm font-semibold text-[var(--text)]">{title}</div>
+            {subtitle && <div className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</div>}
+          </div>
+          <svg className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {open && <div className="px-5 pb-5 border-t border-[var(--border-subtle)]">{children}</div>}
+      </div>
+    );
   };
 
   const navIcons: Record<string, string> = {
@@ -618,21 +640,11 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg)]">
+    <div className="flex min-h-screen">
       {/* Sidebar */}
-      <nav className="w-[var(--sidebar-w)] bg-[var(--bg-elevated)] border-r border-[var(--border)] flex flex-col fixed top-0 bottom-0 z-20">
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-[var(--text)] tracking-tight">ADECARTE</h1>
-              <span className="text-[10px] text-[var(--text-muted)] font-medium">Forensic Investigator</span>
-            </div>
-          </div>
+      <nav className="w-[var(--sidebar-w)] bg-white border-r border-[var(--border)] flex flex-col fixed top-0 bottom-0 z-20">
+        <div className="px-5 pt-6 pb-5">
+          <h1 className="text-base font-bold text-[var(--text)] tracking-tight">ADECARTE</h1>
         </div>
 
         <div className="px-3 flex-1 overflow-y-auto">
@@ -640,12 +652,12 @@ export default function Home() {
           <div className="space-y-0.5">
             {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious"]] as [Tab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setTab(key)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
                   tab === key
-                    ? "bg-[var(--bg-active)] text-[var(--text)] shadow-sm"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    ? "bg-[var(--bg-active)] text-[var(--text)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)]"
                 }`}>
-                <svg className="w-4 h-4 flex-shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={navIcons[key] || navIcons.dashboard} />
                 </svg>
                 {label}
@@ -656,17 +668,14 @@ export default function Home() {
 
         <div className="p-3 border-t border-[var(--border)]">
           <a href="/api/export"
-            className="flex items-center justify-center gap-2 w-full text-[13px] font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] transition-all">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
+            className="flex items-center justify-center gap-2 w-full text-[13px] font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] transition-all">
             Export CSV
           </a>
         </div>
       </nav>
 
       {/* Main */}
-      <main className="ml-[var(--sidebar-w)] flex-1 min-w-0">
+      <main className="ml-[var(--sidebar-w)] flex-1 min-w-0 bg-[var(--bg-page)]">
 
         {/* ═══ Dashboard ═══ */}
         {tab === "dashboard" && stats && (
@@ -687,16 +696,16 @@ export default function Home() {
                 ["Verified Fraud", `${fmt(stats.verified_fraud_amount)} (${stats.verified_fraud_count})`, "fraud"],
               ] as [string, any, string][]).map(([label, value, color], i) => (
                 <div key={i} className={`rounded-xl p-4 transition-all ${
-                  color === "fraud" ? "bg-red-500/10 ring-1 ring-red-500/30" :
+                  color === "fraud" ? "bg-red-50 ring-1 ring-red-500/30" :
                   color === "alert" ? "bg-orange-500/5 ring-1 ring-orange-500/20" :
                   color === "green" ? "bg-emerald-500/5 ring-1 ring-emerald-500/15" :
-                  color === "red" ? "bg-red-500/5 ring-1 ring-red-500/15" :
+                  color === "red" ? "bg-red-50 ring-1 ring-red-500/15" :
                   "bg-[var(--bg-card)] ring-1 ring-[var(--border)]"
                 }`}>
                   <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
                   <div className={`text-lg font-bold mt-1.5 tracking-tight ${
                     color === "green" ? "text-emerald-400" :
-                    color === "red" || color === "alert" || color === "fraud" ? "text-red-400" : "text-[var(--text)]"
+                    color === "red" || color === "alert" || color === "fraud" ? "text-red-600" : "text-[var(--text)]"
                   }`}>{String(value)}</div>
                   {label === "Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.deposit_count} txns</div>}
                   {label === "Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.withdrawal_count} txns</div>}
@@ -704,7 +713,7 @@ export default function Home() {
               ))}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+              <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-[var(--text)] mb-3">By Category</h3>
                 <div className="max-h-72 overflow-y-auto space-y-1">
                   {stats.by_category.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
@@ -717,7 +726,7 @@ export default function Home() {
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+              <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
                 <h3 className="font-semibold mb-3">By Flag</h3>
                 <div className="space-y-1">
                   {stats.by_flag.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
@@ -730,7 +739,7 @@ export default function Home() {
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+              <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
                 <h3 className="font-semibold mb-3">Suspicious Breakdown</h3>
                 <div className="space-y-1">
                   {stats.suspicious_breakdown.length === 0 ? <p className="text-sm text-[var(--text-muted)]">None detected</p> :
@@ -739,12 +748,12 @@ export default function Home() {
                         <span className="flex-1 truncate">{s.category}</span>
                         <FlagBadge flag={s.flag} />
                         <span className="text-[var(--text-muted)] mx-2">{s.count}</span>
-                        <span className="font-semibold text-red-400 tabular-nums">{fmt(s.total_amount)}</span>
+                        <span className="font-semibold text-red-600 tabular-nums">{fmt(s.total_amount)}</span>
                       </div>
                     ))}
                 </div>
               </div>
-              <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+              <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
                 <h3 className="font-semibold mb-3">By Account</h3>
                 <div className="max-h-72 overflow-y-auto">
                   {!stats.by_account || stats.by_account.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No data yet</p> :
@@ -761,15 +770,15 @@ export default function Home() {
                         {stats.by_account.map((a: any, i: number) => (
                           <tr key={i} className="border-t border-[var(--border)]">
                             <td className="py-1.5 pr-2 font-medium truncate max-w-[100px]">{a.account}</td>
-                            <td className="py-1.5 px-1 text-right text-green-400 tabular-nums">
+                            <td className="py-1.5 px-1 text-right text-emerald-600 tabular-nums">
                               <div>{fmt(a.deposit_amount)}</div>
                               <div className="text-[9px] text-[var(--text-muted)]">{a.deposits} txns</div>
                             </td>
-                            <td className="py-1.5 px-1 text-right text-red-400 tabular-nums">
+                            <td className="py-1.5 px-1 text-right text-red-600 tabular-nums">
                               <div>{fmt(a.withdrawal_amount)}</div>
                               <div className="text-[9px] text-[var(--text-muted)]">{a.withdrawals} txns</div>
                             </td>
-                            <td className={`py-1.5 pl-2 text-right font-semibold tabular-nums ${a.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>
+                            <td className={`py-1.5 pl-2 text-right font-semibold tabular-nums ${a.total_amount < 0 ? "text-red-600" : "text-emerald-600"}`}>
                               {fmt(a.total_amount)}
                             </td>
                           </tr>
@@ -790,7 +799,7 @@ export default function Home() {
               <h2 className="text-xl font-semibold text-[var(--text)]">Upload Transactions</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Import CSV files with transaction data</p>
             </div>
-            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5">
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
               {!csvFile ? (
                 <div
                   className="border-2 border-dashed border-[var(--border)] rounded-lg p-12 text-center cursor-pointer hover:border-indigo-400 transition-colors"
@@ -800,7 +809,7 @@ export default function Home() {
                   onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("border-indigo-400"); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); }}
                 >
                   <p className="text-[var(--text-muted)] mb-4">Drag & drop a CSV file here, or click to browse</p>
-                  <button className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-hover)]">Choose File</button>
+                  <button className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-muted)]">Choose File</button>
                   <input ref={fileRef} type="file" accept=".csv" hidden onChange={e => { if (e.target.files?.length) handleFile(e.target.files[0]); }} />
                 </div>
               ) : (
@@ -824,7 +833,7 @@ export default function Home() {
                   {csvPreview.length > 0 && (
                     <div className="overflow-x-auto mb-4">
                       <table className="w-full text-xs border border-[var(--border)] rounded">
-                        <thead><tr>{csvHeaders.map(h => <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] px-2 py-1 text-left">{h}</th>)}</tr></thead>
+                        <thead><tr>{csvHeaders.map(h => <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] px-2 py-1 text-left">{h}</th>)}</tr></thead>
                         <tbody>{csvPreview.map((row, i) => <tr key={i}>{csvHeaders.map(h => <td key={h} className="px-2 py-1 border-b border-[var(--border-subtle)]">{row[h]}</td>)}</tr>)}</tbody>
                       </table>
                       <p className="text-xs text-[var(--text-muted)] mt-1">Showing first {csvPreview.length} rows</p>
@@ -832,7 +841,7 @@ export default function Home() {
                   )}
                   <div className="flex gap-3">
                     <button onClick={confirmUpload} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded-md text-sm font-medium">Upload & Import</button>
-                    <button onClick={() => { setCsvFile(null); setCsvHeaders([]); setCsvPreview([]); setUploadStatus(null); }} className="px-4 py-2 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-hover)]">Cancel</button>
+                    <button onClick={() => { setCsvFile(null); setCsvHeaders([]); setCsvPreview([]); setUploadStatus(null); }} className="px-4 py-2 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-muted)]">Cancel</button>
                   </div>
                 </>
               )}
@@ -866,8 +875,8 @@ export default function Home() {
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
               <input type="number" placeholder="Max $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
-              <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Filter</button>
-              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Clear</button>
+              <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Filter</button>
+              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Clear</button>
             </div>
             {selectedIds.size > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">
@@ -884,21 +893,21 @@ export default function Home() {
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
                 <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
-                  className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded text-sm font-medium">
+                  className="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded text-sm font-medium">
                   {bulkAiLoading ? <><span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> AI...</> : `AI Categorize (${selectedIds.size})`}
                 </button>
                 <div className="h-4 w-px bg-[var(--border)]" />
                 <button onClick={bulkDelete}
-                  className="px-3 py-1 bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 rounded text-sm font-medium">
+                  className="px-3 py-1 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded text-sm font-medium">
                   Delete ({selectedIds.size})
                 </button>
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
+              <table className="w-full text-sm border border-[var(--border)] rounded-2xl">
                 <thead>
                   <tr>
-                    <th className="bg-[var(--bg-hover)] px-3 py-2"><input type="checkbox" onChange={toggleAll} checked={selectedIds.size === transactions.length && transactions.length > 0} /></th>
+                    <th className="bg-[var(--bg-muted)] px-3 py-2"><input type="checkbox" onChange={toggleAll} checked={selectedIds.size === transactions.length && transactions.length > 0} /></th>
                     {([
                       ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
@@ -906,12 +915,12 @@ export default function Home() {
                       ["account_name", "Account"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
                       ["category", "Category"], ["flag", "Flag"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
-                      <th key={f} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
+                      <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
                         onClick={() => handleSort(f)}>
                         {l} {sort.field === f ? (sort.desc ? "↓" : "↑") : ""}
                       </th>
                     ))}
-                    <th className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2">Actions</th>
+                    <th className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -920,13 +929,13 @@ export default function Home() {
                   ) : transactions.map(t => {
                     const dirLower = (t.direction || "").toLowerCase();
                     const dirColor = dirLower.match(/^(internal|transfer between|internal transfer)/)
-                      ? "text-amber-400 font-semibold"
+                      ? "text-amber-600 font-semibold"
                       : dirLower.match(/^(buy|in|incoming|deposit|credit|contribut|receive)/)
-                        ? "text-green-400 font-semibold"
-                        : dirLower ? "text-red-400 font-semibold" : "";
+                        ? "text-emerald-600 font-semibold"
+                        : dirLower ? "text-red-600 font-semibold" : "";
                     const expanded = expandedRows.has(t.id);
                     return (
-                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)] align-top">
+                    <tr key={t.id} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] align-top">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 min-w-[200px]">
@@ -934,12 +943,12 @@ export default function Home() {
                           {t.description || "-"}
                         </div>
                         {t.description && t.description.length > 30 && (
-                          <button onClick={() => toggleExpand(t.id)} className="text-[10px] text-indigo-400 hover:underline mt-0.5">
+                          <button onClick={() => toggleExpand(t.id)} className="text-[10px] text-indigo-600 hover:underline mt-0.5">
                             {expanded ? "collapse" : "expand"}
                           </button>
                         )}
                       </td>
-                      <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
+                      <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{t.settle_date || "-"}</td>
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
                       <td className="px-3 py-2 min-w-[120px]">
@@ -955,9 +964,9 @@ export default function Home() {
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
                       <td className="px-3 py-2 text-center flex gap-1 justify-center">
-                        <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-hover)]">Edit</button>
+                        <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button>
                         <button onClick={() => aiCategorizeSingle(t.id)} disabled={aiCategorizingIds.has(t.id)}
-                          className="px-2 py-1 text-xs border border-amber-500/40 text-amber-400 rounded hover:bg-amber-500/10 disabled:opacity-50"
+                          className="px-2 py-1 text-xs border border-amber-500/40 text-amber-600 rounded hover:bg-amber-50 disabled:opacity-50"
                           title="AI categorize this transaction">
                           {aiCategorizingIds.has(t.id) ? <span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> : "AI"}
                         </button>
@@ -980,11 +989,11 @@ export default function Home() {
             </div>
 
             {/* Investigation Context */}
-            <div className="bg-[var(--bg-card)] border border-amber-500/30 rounded-lg p-5 mb-6">
-              <h3 className="font-semibold mb-2 text-amber-400">Investigation Context</h3>
+            <div className="bg-[var(--bg-card)] border border-amber-200 rounded-lg p-5 mb-6">
+              <h3 className="font-semibold mb-2 text-amber-600">Investigation Context</h3>
               <p className="text-xs text-[var(--text-muted)] mb-2">Describe the situation — what happened, who is involved, which accounts are suspect. This context is sent to ALL AI features (categorization, analyst chat, party extraction).</p>
               <textarea
-                className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm min-h-[100px] mb-2"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-3 py-2 text-sm min-h-[100px] mb-2"
                 placeholder="e.g. 'We suspect that an employee named X diverted funds from accounts A and B to personal accounts. The fraud may have started around March 2024. Authorized vendors include Company Y and Company Z. Any transfers to unknown personal accounts should be flagged...'"
                 value={investigationContext}
                 onChange={e => {
@@ -995,17 +1004,17 @@ export default function Home() {
               <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. Persists across sessions.</p>
             </div>
 
-            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 space-y-5">
-              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
-                <h3 className="text-indigo-400 font-semibold mb-2">Step 1: Manual Categorization</h3>
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 space-y-5">
+              <div className="border border-[var(--border)] rounded-2xl p-4">
+                <h3 className="text-indigo-600 font-semibold mb-2">Step 1: Manual Categorization</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-2">Go to All Transactions and manually categorize at least 3 transactions. The more you categorize, the better the AI will perform.</p>
                 <p className="text-sm text-[var(--text-muted)]">{stats?.categorized || 0} categorized, {stats?.uncategorized || 0} remaining</p>
               </div>
-              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
-                <h3 className="text-indigo-400 font-semibold mb-2">AI Instructions</h3>
+              <div className="border border-[var(--border)] rounded-2xl p-4">
+                <h3 className="text-indigo-600 font-semibold mb-2">AI Instructions</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-2">Give the AI context about your investigation. These instructions are used by all AI categorization (bulk, per-row, and analyst chat).</p>
                 <textarea
-                  className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm min-h-[80px] mb-2"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-3 py-2 text-sm min-h-[80px] mb-2"
                   placeholder="e.g. 'Any transfer to account X is suspicious. Payments to John Doe are authorized vendor payments. Amounts over $50k to unknown parties should be flagged critical...'"
                   value={aiInstructions}
                   onChange={e => {
@@ -1015,8 +1024,8 @@ export default function Home() {
                 />
                 <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. These instructions persist across sessions.</p>
               </div>
-              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
-                <h3 className="text-indigo-400 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
+              <div className="border border-[var(--border)] rounded-2xl p-4">
+                <h3 className="text-indigo-600 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-3">AI will propose categorizations for review. You can accept/reject each one before applying.</p>
                 <div className="flex flex-wrap gap-2 items-center">
                   <button onClick={runAiPreview} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
@@ -1030,14 +1039,14 @@ export default function Home() {
                         {aiLoading ? <><span className="spinner mr-2"></span>Applying...</> : `Apply (${aiPreviewAccepted.size}/${aiPreview.length})`}
                       </button>
                       <button onClick={() => { setAiPreview(null); setAiStatus(null); }}
-                        className="px-4 py-2.5 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-hover)]">
+                        className="px-4 py-2.5 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-muted)]">
                         Discard
                       </button>
                     </>
                   )}
                   {aiUndoSnapshot && (
                     <button onClick={undoAiCategorize} disabled={aiLoading}
-                      className="px-4 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded-md font-medium text-sm">
+                      className="px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded-md font-medium text-sm">
                       Undo Last Apply ({aiUndoSnapshot.length} txns)
                     </button>
                   )}
@@ -1046,12 +1055,12 @@ export default function Home() {
 
                 {/* Preview table */}
                 {aiPreview && aiPreview.length > 0 && (
-                  <div className="mt-4 ring-1 ring-[var(--border)] rounded-xl overflow-hidden">
-                    <div className="bg-[var(--bg-hover)] px-3 py-2 flex items-center justify-between">
+                  <div className="mt-4 border border-[var(--border)] rounded-2xl overflow-hidden">
+                    <div className="bg-[var(--bg-muted)] px-3 py-2 flex items-center justify-between">
                       <span className="text-xs font-medium">{aiPreview.length} proposals — {aiPreviewAccepted.size} accepted</span>
                       <div className="flex gap-2">
                         <button onClick={() => setAiPreviewAccepted(new Set(aiPreview.map((p: any) => p.id)))}
-                          className="text-[10px] text-indigo-400 hover:underline">Select All</button>
+                          className="text-[10px] text-indigo-600 hover:underline">Select All</button>
                         <button onClick={() => setAiPreviewAccepted(new Set())}
                           className="text-[10px] text-[var(--text-muted)] hover:underline">Deselect All</button>
                       </div>
@@ -1086,12 +1095,12 @@ export default function Home() {
                                 </td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{p.original?.date || "-"}</td>
                                 <td className="px-2 py-1.5 max-w-[200px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
-                                <td className={`px-2 py-1.5 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(p.original?.amount)}</td>
+                                <td className={`px-2 py-1.5 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</td>
                                 <td className="px-2 py-1.5 font-medium">{p.category}</td>
                                 <td className="px-2 py-1.5">
                                   <span className={
-                                    p.direction === "Internal Transfer" ? "text-amber-400" :
-                                    p.direction === "Contribution" ? "text-green-400" : "text-red-400"
+                                    p.direction === "Internal Transfer" ? "text-amber-600" :
+                                    p.direction === "Contribution" ? "text-emerald-600" : "text-red-600"
                                   }>{p.direction}</span>
                                 </td>
                                 <td className="px-2 py-1.5"><FlagBadge flag={p.flag} /></td>
@@ -1106,11 +1115,11 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <div className="ring-1 ring-[var(--border)] rounded-xl p-4">
-                <h3 className="text-indigo-400 font-semibold mb-2">Step 3: Review Results</h3>
+              <div className="border border-[var(--border)] rounded-2xl p-4">
+                <h3 className="text-indigo-600 font-semibold mb-2">Step 3: Review Results</h3>
                 <p className="text-sm text-[var(--text-muted)]">
-                  Review AI categorizations in <button onClick={() => setTab("transactions")} className="text-indigo-400 underline">Transactions</button> tab.
-                  Check <button onClick={() => setTab("suspicious")} className="text-indigo-400 underline">Suspicious Activity</button> for flagged items.
+                  Review AI categorizations in <button onClick={() => setTab("transactions")} className="text-indigo-600 underline">Transactions</button> tab.
+                  Check <button onClick={() => setTab("suspicious")} className="text-indigo-600 underline">Suspicious Activity</button> for flagged items.
                 </p>
               </div>
             </div>
@@ -1125,16 +1134,16 @@ export default function Home() {
               <p className="text-sm text-[var(--text-muted)] mt-1">Flagged transactions requiring investigation</p>
             </div>
             {suspiciousTxns.length > 0 && (
-              <div className="p-4 rounded-lg mb-4 bg-red-500/10 border border-red-500 text-center font-semibold">
+              <div className="p-4 rounded-lg mb-4 bg-red-50 border border-red-200 text-center font-semibold">
                 ⚠ {suspiciousTxns.length} suspicious transactions — Total: {fmt(suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0))}
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
+              <table className="w-full text-sm border border-[var(--border)] rounded-2xl">
                 <thead>
                   <tr>
                     {["Date", "Description", "Amount", "Direction", "Symbol", "Security", "Qty", "Account", "Strategy", "Category", "Flag", "AI Notes", "Actions"].map(h => (
-                      <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
+                      <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1142,13 +1151,13 @@ export default function Home() {
                   {suspiciousTxns.length === 0 ? (
                     <tr><td colSpan={13} className="text-center text-[var(--text-muted)] py-8">No suspicious transactions found. Run AI categorization to detect fraud patterns.</td></tr>
                   ) : suspiciousTxns.map(t => (
-                    <tr key={t.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)]">
+                    <tr key={t.id} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]">
                       <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
-                      <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(t.amount)}</td>
+                      <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
                       <td className="px-3 py-2">{t.direction ? <span className={
-                        t.direction.toLowerCase().match(/internal|transfer between/) ? "text-amber-400 font-semibold" :
-                        t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit|contribut|receive)/) ? "text-green-400 font-semibold" : "text-red-400 font-semibold"
+                        t.direction.toLowerCase().match(/internal|transfer between/) ? "text-amber-600 font-semibold" :
+                        t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit|contribut|receive)/) ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"
                       }>{t.direction}</span> : "-"}</td>
                       <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
                       <td className="px-3 py-2 max-w-[150px] truncate">{t.security || "-"}</td>
@@ -1158,7 +1167,7 @@ export default function Home() {
                       <td className="px-3 py-2">{t.category}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2 max-w-[250px] text-xs text-[var(--text-muted)] truncate" title={t.notes}>{t.notes || "-"}</td>
-                      <td className="px-3 py-2"><button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-hover)]">Edit</button></td>
+                      <td className="px-3 py-2"><button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1174,7 +1183,7 @@ export default function Home() {
               });
               const totalSusp = suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0);
               return (
-                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mt-4">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mt-4">
                   <h3 className="font-semibold mb-3">Investigation Summary</h3>
                   <table className="w-full text-sm">
                     <thead><tr>
@@ -1187,13 +1196,13 @@ export default function Home() {
                         <tr key={cat} className="border-b border-[var(--border-subtle)]">
                           <td className="px-3 py-2">{cat}</td>
                           <td className="px-3 py-2">{d.count}</td>
-                          <td className="px-3 py-2 text-red-400 font-semibold">{fmt(d.total)}</td>
+                          <td className="px-3 py-2 text-red-600 font-semibold">{fmt(d.total)}</td>
                         </tr>
                       ))}
                       <tr className="border-t-2 border-[var(--border)] font-bold">
                         <td className="px-3 py-2">TOTAL SUSPICIOUS</td>
                         <td className="px-3 py-2">{suspiciousTxns.length}</td>
-                        <td className="px-3 py-2 text-red-400">{fmt(totalSusp)}</td>
+                        <td className="px-3 py-2 text-red-600">{fmt(totalSusp)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1212,7 +1221,7 @@ export default function Home() {
             </div>
 
             {/* AI Party Extraction */}
-            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">AI Party Identification</h3>
@@ -1227,7 +1236,7 @@ export default function Home() {
             </div>
 
             {/* Merge Counterparties */}
-            <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">Merge Counterparties</h3>
@@ -1235,7 +1244,7 @@ export default function Home() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => runAutoMerge(true)} disabled={autoMergeLoading}
-                    className="px-4 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded-md text-xs font-medium">
+                    className="px-4 py-1.5 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded-md text-xs font-medium">
                     {autoMergeLoading ? <><span className="spinner mr-1"></span>Analyzing...</> : "AI Preview Merges"}
                   </button>
                   {autoMergePreview && autoMergePreview.length > 0 && (
@@ -1249,8 +1258,8 @@ export default function Home() {
 
               {/* Auto-merge preview */}
               {autoMergePreview && autoMergePreview.length > 0 && (
-                <div className="mb-4 border border-amber-500/30 rounded-lg overflow-hidden">
-                  <div className="bg-amber-500/10 px-3 py-2 text-xs text-amber-400 font-medium">
+                <div className="mb-4 border border-amber-200 rounded-lg overflow-hidden">
+                  <div className="bg-amber-50 px-3 py-2 text-xs text-amber-600 font-medium">
                     AI found {autoMergePreview.length} merge groups — review before applying
                   </div>
                   <div className="max-h-[200px] overflow-y-auto">
@@ -1281,21 +1290,21 @@ export default function Home() {
                   value={mergeSearch} onChange={e => setMergeSearch(e.target.value)} />
                 <span className="text-xs text-[var(--text-muted)]">{mergeSelected.size} selected</span>
                 {mergeSelected.size > 0 && (
-                  <button onClick={() => { setMergeSelected(new Set()); setMergeCanonical(""); }} className="text-xs text-indigo-400 hover:underline">Clear</button>
+                  <button onClick={() => { setMergeSelected(new Set()); setMergeCanonical(""); }} className="text-xs text-indigo-600 hover:underline">Clear</button>
                 )}
               </div>
-              <div className="max-h-[250px] overflow-y-auto ring-1 ring-[var(--border)] rounded-xl mb-3">
+              <div className="max-h-[250px] overflow-y-auto border border-[var(--border)] rounded-2xl mb-3">
                 {counterparties.length === 0 ? (
                   <p className="text-sm text-[var(--text-muted)] p-4 text-center">No counterparties found. Run AI Party Identification first.</p>
                 ) : counterparties
                     .filter(c => !mergeSearch || c.name.toLowerCase().includes(mergeSearch.toLowerCase()))
                     .map(c => (
                   <label key={c.name}
-                    className={`flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-hover)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0 text-sm ${mergeSelected.has(c.name) ? "bg-indigo-500/10" : ""}`}>
+                    className={`flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-muted)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0 text-sm ${mergeSelected.has(c.name) ? "bg-indigo-500/10" : ""}`}>
                     <input type="checkbox" checked={mergeSelected.has(c.name)} onChange={() => toggleMergeSelect(c.name)} />
                     <span className="flex-1 truncate">{c.name}</span>
                     <span className="text-[var(--text-muted)] text-xs">{c.count} txns</span>
-                    <span className={`text-xs tabular-nums font-medium ${c.total_amount < 0 ? "text-red-400" : "text-green-400"}`}>{fmt(c.total_amount)}</span>
+                    <span className={`text-xs tabular-nums font-medium ${c.total_amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(c.total_amount)}</span>
                   </label>
                 ))}
               </div>
@@ -1323,11 +1332,11 @@ export default function Home() {
             ) : (
               <>
                 {/* Cluster Detection Config */}
-                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-4 mb-6">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-sm">Withdrawal Cluster Detection</h3>
                     <button onClick={() => setShowClusters(!showClusters)}
-                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${showClusters ? "bg-red-500/20 border-red-500/50 text-red-400" : "border-[var(--border)] text-[var(--text-muted)]"}`}>
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${showClusters ? "bg-red-500/20 border-red-500/50 text-red-600" : "border-[var(--border)] text-[var(--text-muted)]"}`}>
                       {showClusters ? "Visible" : "Hidden"}
                     </button>
                   </div>
@@ -1358,14 +1367,14 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-                    <span className="text-xs text-amber-400 font-medium">
+                    <span className="text-xs text-amber-600 font-medium">
                       {withdrawalClusters.length} cluster{withdrawalClusters.length !== 1 ? "s" : ""} detected
                     </span>
                   </div>
                 </div>
 
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
-                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
                   {analyticsData.balance_over_time.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
@@ -1403,17 +1412,17 @@ export default function Home() {
                         </p>
                         <ResponsiveContainer width="100%" height={480}>
                           <LineChart data={raw}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="date"
-                              tick={{ fill: "#71717a", fontSize: 11 }}
+                              tick={{ fill: "#a3a3a3", fontSize: 11 }}
                               angle={-45} textAnchor="end" height={70}
                               tickFormatter={formatTick}
                               interval={tickInterval || "preserveStartEnd"}
                               minTickGap={40}
                             />
-                            <YAxis tick={{ fill: "#71717a", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
                             <Tooltip
-                              contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+                              contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", color: "#0f0f0f" }}
                               formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
                             />
                             <Legend />
@@ -1438,7 +1447,7 @@ export default function Home() {
                             <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
                             <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
                             <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
-                            <Brush dataKey="date" height={30} stroke="#6366f1" fill="#111113" travellerWidth={10}
+                            <Brush dataKey="date" height={30} stroke="#6366f1" fill="#fafafa" travellerWidth={10}
                               onChange={(range: any) => {
                                 if (range && typeof range.startIndex === "number") {
                                   setBrushRange({ start: range.startIndex, end: range.endIndex });
@@ -1471,7 +1480,7 @@ export default function Home() {
                 </div>
 
                 {/* Chart 2: Balance Over Time by Account */}
-                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Balance Over Time by Account</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-3">Track individual accounts — identify which account was drained.</p>
                   {Object.keys(analyticsData.balance_by_account).length === 0 ? (
@@ -1538,10 +1547,10 @@ export default function Home() {
                         return (
                           <ResponsiveContainer width="100%" height={350}>
                             <LineChart data={merged}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                              <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                              <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                              <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="date" tick={{ fill: "#a3a3a3", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                              <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
                               <Legend />
                               {acctKeys.map((acct, i) => {
                                 if (!selectedAccounts.has(acct)) return null;
@@ -1556,7 +1565,7 @@ export default function Home() {
                 </div>
 
                 {/* Chart 3: Counterparty Breakdown */}
-                <div className="bg-[var(--bg-card)] ring-1 ring-[var(--border)] rounded-xl p-5 mb-6">
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party.</p>
                   {analyticsData.transaction_counts.length === 0 ? (
@@ -1565,10 +1574,10 @@ export default function Home() {
                     <>
                       <ResponsiveContainer width="100%" height={Math.max(300, analyticsData.transaction_counts.length * 32)}>
                         <BarChart data={analyticsData.transaction_counts} layout="vertical" margin={{ left: 150 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                          <XAxis type="number" tick={{ fill: "#8b8d98", fontSize: 11 }} />
-                          <YAxis dataKey="party" type="category" tick={{ fill: "#8b8d98", fontSize: 11 }} width={140} />
-                          <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis type="number" tick={{ fill: "#a3a3a3", fontSize: 11 }} />
+                          <YAxis dataKey="party" type="category" tick={{ fill: "#a3a3a3", fontSize: 11 }} width={140} />
+                          <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }} />
                           <Legend />
                           <Bar dataKey="deposits" fill="#22c55e" name="Deposits (In)" />
                           <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals (Out)" />
@@ -1586,11 +1595,11 @@ export default function Home() {
                               return partySort.desc ? String(vb).localeCompare(String(va)) : String(va).localeCompare(String(vb));
                             });
                           return (
-                            <table className="w-full text-sm ring-1 ring-[var(--border)] rounded-xl">
+                            <table className="w-full text-sm border border-[var(--border)] rounded-2xl">
                               <thead><tr>
                                 {cols.map(([key, label]) => (
                                   <th key={key}
-                                    className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white select-none"
+                                    className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left cursor-pointer hover:text-white select-none"
                                     onClick={() => setPartySort(prev => prev.field === key ? { field: key, desc: !prev.desc } : { field: key, desc: true })}>
                                     {label} {partySort.field === key ? (partySort.desc ? "↓" : "↑") : ""}
                                   </th>
@@ -1598,13 +1607,13 @@ export default function Home() {
                               </tr></thead>
                               <tbody>
                                 {sorted.map((p: any) => (
-                                  <tr key={p.party} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)]">
+                                  <tr key={p.party} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]">
                                     <td className="px-3 py-2 font-medium">{p.party}</td>
-                                    <td className="px-3 py-2 text-green-400">{p.deposits}</td>
-                                    <td className="px-3 py-2 text-green-400 tabular-nums">{fmt(p.deposit_amount)}</td>
-                                    <td className="px-3 py-2 text-red-400">{p.withdrawals}</td>
-                                    <td className="px-3 py-2 text-red-400 tabular-nums">{fmt(p.withdrawal_amount)}</td>
-                                    <td className={`px-3 py-2 font-semibold tabular-nums ${p.net >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(p.net)}</td>
+                                    <td className="px-3 py-2 text-emerald-600">{p.deposits}</td>
+                                    <td className="px-3 py-2 text-emerald-600 tabular-nums">{fmt(p.deposit_amount)}</td>
+                                    <td className="px-3 py-2 text-red-600">{p.withdrawals}</td>
+                                    <td className="px-3 py-2 text-red-600 tabular-nums">{fmt(p.withdrawal_amount)}</td>
+                                    <td className={`px-3 py-2 font-semibold tabular-nums ${p.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmt(p.net)}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1617,11 +1626,11 @@ export default function Home() {
                 </div>
 
                 {/* Chart 4: Fraud Impact Analysis */}
-                <div className="bg-[var(--bg-card)] border border-red-600/40 rounded-lg p-5 mb-6">
-                  <h3 className="font-semibold mb-1 text-red-400">Fraud Impact — Present Value Analysis</h3>
+                <div className="bg-[var(--bg-card)] border border-red-200 rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1 text-red-600">Fraud Impact — Present Value Analysis</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-3">
                     If the verified fraudulent money had stayed invested, what would it be worth today?
-                    Only transactions flagged as <span className="text-red-400 font-semibold">VERIFIED FRAUD</span> are included.
+                    Only transactions flagged as <span className="text-red-600 font-semibold">VERIFIED FRAUD</span> are included.
                   </p>
                   <div className="flex items-center gap-3 mb-4">
                     <label className="text-xs text-[var(--text-muted)]">Annual return rate (%):</label>
@@ -1691,22 +1700,22 @@ export default function Home() {
                       <>
                         {/* Summary cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                          <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl p-3 text-center">
+                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Stolen</div>
-                            <div className="text-lg font-bold text-red-400">{fmt(totalStolen)}</div>
+                            <div className="text-lg font-bold text-red-600">{fmt(totalStolen)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">{fraudWithPV.length} transactions</div>
                           </div>
-                          <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl p-3 text-center">
+                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
-                            <div className="text-lg font-bold text-red-400">{fmt(totalPV)}</div>
+                            <div className="text-lg font-bold text-red-600">{fmt(totalPV)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">at {fraudReturnRate}% annual</div>
                           </div>
-                          <div className="bg-[var(--bg)] border border-red-600/30 rounded-lg p-3 text-center">
+                          <div className="bg-[var(--bg)] border border-red-200 rounded-lg p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Lost Growth</div>
-                            <div className="text-lg font-bold text-red-400">{fmt(totalGrowth)}</div>
+                            <div className="text-lg font-bold text-red-600">{fmt(totalGrowth)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">opportunity cost</div>
                           </div>
-                          <div className="bg-[var(--bg)] border border-red-600/50 rounded-lg p-3 text-center">
+                          <div className="bg-[var(--bg)] border border-red-200 rounded-lg p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Impact</div>
                             <div className="text-lg font-bold text-red-500">{fmt(totalPV)}</div>
                             <div className="text-[10px] text-[var(--text-muted)]">{((totalGrowth / totalStolen) * 100).toFixed(1)}% above stolen amount</div>
@@ -1716,10 +1725,10 @@ export default function Home() {
                         {/* Counterfactual chart */}
                         <ResponsiveContainer width="100%" height={350}>
                           <LineChart data={counterfactualData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                            <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                            <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="date" tick={{ fill: "#a3a3a3", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                            <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }}
                               formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
                             <Legend />
                             <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} dot={false} name="Actual Balance" />
@@ -1730,10 +1739,10 @@ export default function Home() {
 
                         {/* Detail table */}
                         <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-xs ring-1 ring-[var(--border)] rounded-xl">
+                          <table className="w-full text-xs border border-[var(--border)] rounded-2xl">
                             <thead><tr>
                               {["Date", "Description", "Counterparty", "Account", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
-                                <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
+                                <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
                               ))}
                             </tr></thead>
                             <tbody>
@@ -1743,18 +1752,18 @@ export default function Home() {
                                   <td className="px-2 py-1.5 max-w-[150px] truncate">{t.description || "-"}</td>
                                   <td className="px-2 py-1.5">{t.counterparty || "-"}</td>
                                   <td className="px-2 py-1.5">{t.account || "-"}</td>
-                                  <td className="px-2 py-1.5 text-red-400 font-medium tabular-nums">{fmt(t.amount)}</td>
+                                  <td className="px-2 py-1.5 text-red-600 font-medium tabular-nums">{fmt(t.amount)}</td>
                                   <td className="px-2 py-1.5 tabular-nums">{t.days}d</td>
-                                  <td className="px-2 py-1.5 text-red-400 font-semibold tabular-nums">{fmt(t.presentValue)}</td>
-                                  <td className="px-2 py-1.5 text-red-300 tabular-nums">{fmt(t.growth)} ({((t.growth / t.amount) * 100).toFixed(1)}%)</td>
+                                  <td className="px-2 py-1.5 text-red-600 font-semibold tabular-nums">{fmt(t.presentValue)}</td>
+                                  <td className="px-2 py-1.5 text-red-500 tabular-nums">{fmt(t.growth)} ({((t.growth / t.amount) * 100).toFixed(1)}%)</td>
                                 </tr>
                               ))}
-                              <tr className="border-t-2 border-red-600/50 font-bold">
+                              <tr className="border-t-2 border-red-200 font-bold">
                                 <td className="px-2 py-2" colSpan={4}>TOTAL FRAUD IMPACT</td>
-                                <td className="px-2 py-2 text-red-400 tabular-nums">{fmt(totalStolen)}</td>
+                                <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalStolen)}</td>
                                 <td className="px-2 py-2"></td>
-                                <td className="px-2 py-2 text-red-400 tabular-nums">{fmt(totalPV)}</td>
-                                <td className="px-2 py-2 text-red-300 tabular-nums">{fmt(totalGrowth)}</td>
+                                <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalPV)}</td>
+                                <td className="px-2 py-2 text-red-500 tabular-nums">{fmt(totalGrowth)}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -1773,7 +1782,7 @@ export default function Home() {
       {/* AI Chat Toggle Button (fixed) */}
       <button onClick={() => setChatOpen(!chatOpen)}
         className={`fixed bottom-6 z-40 px-5 py-3 rounded-2xl shadow-2xl text-[13px] font-semibold transition-all duration-200 flex items-center gap-2 ${
-          chatOpen ? "right-[432px] bg-[var(--bg-elevated)] ring-1 ring-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]" : "right-6 bg-indigo-500 hover:bg-indigo-400 text-white hover:shadow-indigo-500/25"
+          chatOpen ? "right-[432px] bg-white border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] shadow-sm" : "right-6 bg-[var(--text)] hover:bg-[var(--primary-hover)] text-white shadow-lg"
         }`}>
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d={chatOpen ? "M6 18L18 6M6 6l12 12" : "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"} />
@@ -1785,7 +1794,7 @@ export default function Home() {
       </button>
 
       {/* AI Chat Sidebar */}
-      <div className={`fixed top-0 right-0 h-full w-[420px] bg-[var(--bg-elevated)] border-l border-[var(--border)] z-30 flex flex-col transition-transform duration-300 shadow-2xl ${chatOpen ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed top-0 right-0 h-full w-[420px] bg-white border-l border-[var(--border)] z-30 flex flex-col transition-transform duration-300 shadow-xl ${chatOpen ? "translate-x-0" : "translate-x-full"}`}>
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-sm">AI Forensic Analyst</h3>
@@ -1809,7 +1818,7 @@ export default function Home() {
               <div className="flex flex-col gap-2">
                 {["Where do you think fraud started?", "Which counterparties look suspicious?", "Analyze the withdrawal patterns", "When did the balance start dropping?", "Summarize the overall financial picture"].map(q => (
                   <button key={q} onClick={() => setChatInput(q)}
-                    className="text-xs px-3 py-2 bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors text-left">
+                    className="text-xs px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-2xl text-[var(--text-muted)] hover:text-white hover:border-indigo-400 transition-colors text-left">
                     {q}
                   </button>
                 ))}
@@ -1819,24 +1828,24 @@ export default function Home() {
           {chatMessages.map((msg, i) => (
             <div key={i} className={msg.role === "user" ? "flex justify-end" : ""}>
               {msg.role === "user" ? (
-                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm max-w-[85%]">
+                <div className="bg-[var(--text)] text-white rounded-2xl px-4 py-2.5 text-sm max-w-[85%]">
                   {msg.text}
                 </div>
               ) : (
-                <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-4 py-3 text-sm">
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-400">
+                <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-4 py-3 text-sm">
+                  <div className="prose prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-600">
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
                   {((msg as any).actions || (msg.annotations && msg.annotations.length > 0)) && (
                     <div className="mt-3 pt-2 border-t border-[var(--border)] space-y-1">
                       {(msg as any).actions?.map((a: string, j: number) => (
-                        <div key={`act-${j}`} className="text-[10px] text-green-400 font-medium flex items-center gap-1">
+                        <div key={`act-${j}`} className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
                           <span>&#10003;</span> {a}
                         </div>
                       ))}
                       {msg.annotations && msg.annotations.length > 0 && (
                         <>
-                          <p className="text-[10px] text-amber-400 font-medium">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} on charts</p>
+                          <p className="text-[10px] text-amber-600 font-medium">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} on charts</p>
                           {msg.annotations.map((a: any, j: number) => (
                             <div key={j} className="text-[10px] text-[var(--text-muted)] flex gap-1">
                               <span className="font-medium" style={{ color: a.color || "#f59e0b" }}>{a.type}</span>
@@ -1852,7 +1861,7 @@ export default function Home() {
             </div>
           ))}
           {chatLoading && (
-            <div className="bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-4 py-3">
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-4 py-3">
               <span className="spinner"></span>
             </div>
           )}
@@ -1865,7 +1874,7 @@ export default function Home() {
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
               placeholder="Ask about the data..."
-              className="flex-1 bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-xl px-3 py-2 text-sm" />
+              className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-3 py-2 text-sm" />
             <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
               className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-50 rounded-lg text-sm font-medium">
               Send
@@ -1877,8 +1886,8 @@ export default function Home() {
       {/* Edit Modal */}
       {editTxn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setEditTxn(null)} />
-          <div className="relative bg-[var(--bg-elevated)] ring-1 ring-[var(--border)] rounded-2xl p-6 w-[520px] max-w-[90vw] shadow-2xl">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setEditTxn(null)} />
+          <div className="relative bg-white border border-[var(--border)] rounded-2xl p-6 w-[520px] max-w-[90vw] shadow-xl">
             <h3 className="text-base font-semibold mb-3">Edit Transaction</h3>
             <div className="text-xs text-[var(--text-muted)] mb-5 p-3 bg-[var(--bg)] rounded-xl ring-1 ring-[var(--border)]">
               <div><strong>Date:</strong> {editTxn.date} | <strong>Amount:</strong> {fmt(editTxn.amount)}</div>
@@ -1930,7 +1939,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditTxn(null)} className="px-4 py-2 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Cancel</button>
+              <button onClick={() => setEditTxn(null)} className="px-4 py-2 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Cancel</button>
               <button onClick={saveEdit} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm font-medium">Save</button>
             </div>
           </div>
