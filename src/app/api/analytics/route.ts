@@ -132,10 +132,21 @@ export async function GET(req: NextRequest) {
       category: t.category, flag: t.flag, strategy: t.strategy,
     }));
 
+    // ── 5. Verified fraud transactions for impact analysis ─────────
+    const fraudTxns = txns
+      .filter(t => t.flag === "verified_fraud")
+      .map(t => ({
+        id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
+        description: t.description, counterparty: t.counterparty,
+        account: t.account || t.account_name,
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     return NextResponse.json({
       balance_over_time: balanceOverTime,
       balance_by_account: balanceByAccount,
       transaction_counts: transactionCounts,
+      fraud_transactions: fraudTxns,
       raw_transactions: rawForAi,
     });
   } catch (err: any) {

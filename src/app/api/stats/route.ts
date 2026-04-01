@@ -23,9 +23,13 @@ export async function GET() {
   const uncategorized = total - categorized;
 
   const suspiciousItems = all.filter(t =>
-    t.flag === "suspicious" || t.flag === "critical" || (t.category && t.category.startsWith("SUSPICIOUS"))
+    t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
   );
   const suspiciousAmount = suspiciousItems.reduce((s, t) => s + (t.amount || 0), 0);
+
+  const verifiedFraudItems = all.filter(t => t.flag === "verified_fraud");
+  const verifiedFraudAmount = verifiedFraudItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+  const verifiedFraudCount = verifiedFraudItems.length;
 
   // Group by category
   const byCategoryMap: Record<string, { count: number; total_amount: number }> = {};
@@ -83,6 +87,8 @@ export async function GET() {
     categorized,
     uncategorized,
     suspicious_amount: suspiciousAmount,
+    verified_fraud_amount: verifiedFraudAmount,
+    verified_fraud_count: verifiedFraudCount,
     suspicious_breakdown: suspiciousBreakdown,
     by_category: byCategory,
     by_flag: byFlag,

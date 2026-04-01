@@ -10,7 +10,7 @@ import {
 } from "recharts";
 
 type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
-type Flag = "" | "normal" | "review" | "suspicious" | "critical";
+type Flag = "" | "normal" | "review" | "suspicious" | "critical" | "verified_fraud";
 
 interface Transaction {
   id: number; date: string; settle_date: string; description: string; amount: number;
@@ -25,6 +25,7 @@ interface Stats {
   total_transactions: number; total_amount: number; total_deposits: number;
   total_withdrawals: number; deposit_count: number; withdrawal_count: number;
   categorized: number; uncategorized: number; suspicious_amount: number;
+  verified_fraud_amount: number; verified_fraud_count: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
 }
 
@@ -82,6 +83,7 @@ export default function Home() {
   const [clusterMinAmount, setClusterMinAmount] = useState(10000);
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
   const [clusterFlagFilter, setClusterFlagFilter] = useState<string>("all");
+  const [fraudReturnRate, setFraudReturnRate] = useState(7);
   // AI Chat
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string; annotations?: any[] }>>([]);
@@ -559,7 +561,7 @@ export default function Home() {
 
   // ── Derived ───
   const suspiciousTxns = transactions.filter(t =>
-    t.flag === "suspicious" || t.flag === "critical" || (t.category && t.category.startsWith("SUSPICIOUS"))
+    t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
   );
 
   const toggleSelect = (id: number) => {
@@ -584,8 +586,9 @@ export default function Home() {
       review: "bg-yellow-500/15 text-yellow-400",
       suspicious: "bg-orange-500/15 text-orange-400",
       critical: "bg-red-500/15 text-red-400",
+      verified_fraud: "bg-red-600 text-white",
     };
-    return <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${colors[flag] || ""}`}>{flag}</span>;
+    return <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${colors[flag] || ""}`}>{flag === "verified_fraud" ? "VERIFIED FRAUD" : flag}</span>;
   };
 
   const SourceBadge = ({ src }: { src: string }) => {
@@ -632,7 +635,7 @@ export default function Home() {
         {tab === "dashboard" && stats && (
           <>
             <h2 className="text-2xl font-semibold mb-6">Investigation Dashboard</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
               {([
                 ["Total Txns", stats.total_transactions, ""],
                 ["Net Amount", fmt(stats.total_amount), ""],
@@ -641,14 +644,16 @@ export default function Home() {
                 ["Categorized", stats.categorized, ""],
                 ["Uncategorized", stats.uncategorized, ""],
                 ["Suspicious", fmt(stats.suspicious_amount), "alert"],
+                ["Verified Fraud", `${fmt(stats.verified_fraud_amount)} (${stats.verified_fraud_count})`, "fraud"],
               ] as [string, any, string][]).map(([label, value, color], i) => (
                 <div key={i} className={`bg-[var(--bg-card)] border rounded-lg p-4 text-center ${
+                  color === "fraud" ? "border-red-600 bg-red-600/15" :
                   color === "alert" ? "border-red-500 bg-red-500/5" :
                   color === "green" ? "border-green-500/30 bg-green-500/5" :
                   color === "red" ? "border-red-500/30 bg-red-500/5" : "border-[var(--border)]"
                 }`}>
                   <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">{label}</div>
-                  <div className={`text-xl font-bold mt-1 ${color === "green" ? "text-green-400" : color === "red" || color === "alert" ? "text-red-400" : ""}`}>{String(value)}</div>
+                  <div className={`text-xl font-bold mt-1 ${color === "green" ? "text-green-400" : color === "red" || color === "alert" || color === "fraud" ? "text-red-400" : ""}`}>{String(value)}</div>
                   {label === "Total Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.deposit_count} txns</div>}
                   {label === "Total Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{stats.withdrawal_count} txns</div>}
                 </div>
@@ -805,7 +810,7 @@ export default function Home() {
               <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5"
                 value={filters.flag} onChange={e => setFilters(p => ({ ...p, flag: e.target.value }))}>
                 <option value="">All Flags</option>
-                {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
+                {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f}</option>)}
               </select>
               <input type="number" placeholder="Min $" className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1.5 w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
@@ -824,7 +829,7 @@ export default function Home() {
                 </select>
                 <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
                   <option value="">Set Flag...</option>
-                  {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
+                  {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
                 </select>
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
@@ -1285,7 +1290,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-1">
                       <label className="text-[var(--text-muted)] text-xs">Flag:</label>
-                      {([["all", "All"], ["suspicious+critical", "Suspicious+Critical"], ["suspicious", "Suspicious"], ["critical", "Critical"], ["review", "Review"], ["normal", "Normal"]] as [string, string][]).map(([val, label]) => (
+                      {([["all", "All"], ["verified_fraud", "Verified Fraud"], ["suspicious+critical", "Suspicious+Critical"], ["suspicious", "Suspicious"], ["critical", "Critical"], ["review", "Review"], ["normal", "Normal"]] as [string, string][]).map(([val, label]) => (
                         <button key={val} onClick={() => setClusterFlagFilter(val)}
                           className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${clusterFlagFilter === val
                             ? "bg-indigo-500 border-indigo-500 text-white"
@@ -1509,6 +1514,154 @@ export default function Home() {
                   )}
                 </div>
 
+                {/* Chart 4: Fraud Impact Analysis */}
+                <div className="bg-[var(--bg-card)] border border-red-600/40 rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1 text-red-400">Fraud Impact — Present Value Analysis</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-3">
+                    If the verified fraudulent money had stayed invested, what would it be worth today?
+                    Only transactions flagged as <span className="text-red-400 font-semibold">VERIFIED FRAUD</span> are included.
+                  </p>
+                  <div className="flex items-center gap-3 mb-4">
+                    <label className="text-xs text-[var(--text-muted)]">Annual return rate (%):</label>
+                    <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
+                      onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
+                      className="bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1 w-20 text-sm" />
+                    <span className="text-xs text-[var(--text-muted)]">({fraudReturnRate}% per year, compounded daily)</span>
+                  </div>
+
+                  {(() => {
+                    const fraudTxns = analyticsData.fraud_transactions || [];
+                    if (fraudTxns.length === 0) {
+                      return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
+                    }
+
+                    const today = new Date();
+                    const rate = fraudReturnRate / 100;
+
+                    // Calculate present value for each fraud txn
+                    const fraudWithPV = fraudTxns.map((t: any) => {
+                      const txnDate = new Date(t.date);
+                      const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const presentValue = t.amount * Math.pow(1 + rate, days / 365);
+                      const growth = presentValue - t.amount;
+                      return { ...t, days: Math.round(days), presentValue, growth };
+                    });
+
+                    const totalStolen = fraudWithPV.reduce((s: number, t: any) => s + t.amount, 0);
+                    const totalPV = fraudWithPV.reduce((s: number, t: any) => s + t.presentValue, 0);
+                    const totalGrowth = totalPV - totalStolen;
+
+                    // Build counterfactual balance chart
+                    const balData = analyticsData.balance_over_time;
+                    let cumFraudPV = 0;
+                    let fraudIdx = 0;
+                    const counterfactualData = balData.map((d: any, i: number) => {
+                      // Add any fraud txns on or before this date
+                      while (fraudIdx < fraudWithPV.length) {
+                        const fDate = new Date(fraudWithPV[fraudIdx].date);
+                        const dDate = new Date(d.raw_date);
+                        if (fDate <= dDate) {
+                          // Compound this fraud amount from its date to current chart date
+                          const daysSinceFraud = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
+                          cumFraudPV += fraudWithPV[fraudIdx].amount * Math.pow(1 + rate, daysSinceFraud / 365);
+                          fraudIdx++;
+                        } else break;
+                      }
+                      // Recompute cumFraudPV: all fraud txns up to this date, compounded to this date
+                      let recomputed = 0;
+                      for (let fi = 0; fi < fraudWithPV.length; fi++) {
+                        const fDate = new Date(fraudWithPV[fi].date);
+                        const dDate = new Date(d.raw_date);
+                        if (fDate <= dDate) {
+                          const daysSince = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
+                          recomputed += fraudWithPV[fi].amount * Math.pow(1 + rate, daysSince / 365);
+                        }
+                      }
+                      return {
+                        date: d.date,
+                        actual: d.balance,
+                        counterfactual: d.balance + recomputed,
+                        fraud_impact: recomputed,
+                      };
+                    });
+
+                    return (
+                      <>
+                        {/* Summary cards */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 text-center">
+                            <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Stolen</div>
+                            <div className="text-lg font-bold text-red-400">{fmt(totalStolen)}</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">{fraudWithPV.length} transactions</div>
+                          </div>
+                          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 text-center">
+                            <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
+                            <div className="text-lg font-bold text-red-400">{fmt(totalPV)}</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">at {fraudReturnRate}% annual</div>
+                          </div>
+                          <div className="bg-[var(--bg)] border border-red-600/30 rounded-lg p-3 text-center">
+                            <div className="text-[10px] text-[var(--text-muted)] uppercase">Lost Growth</div>
+                            <div className="text-lg font-bold text-red-400">{fmt(totalGrowth)}</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">opportunity cost</div>
+                          </div>
+                          <div className="bg-[var(--bg)] border border-red-600/50 rounded-lg p-3 text-center">
+                            <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Impact</div>
+                            <div className="text-lg font-bold text-red-500">{fmt(totalPV)}</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">{((totalGrowth / totalStolen) * 100).toFixed(1)}% above stolen amount</div>
+                          </div>
+                        </div>
+
+                        {/* Counterfactual chart */}
+                        <ResponsiveContainer width="100%" height={350}>
+                          <LineChart data={counterfactualData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
+                            <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                            <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }}
+                              formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
+                            <Legend />
+                            <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} dot={false} name="Actual Balance" />
+                            <Line type="monotone" dataKey="counterfactual" stroke="#22c55e" strokeWidth={2} strokeDasharray="6 3" dot={false} name="If No Fraud (Counterfactual)" />
+                            <Line type="monotone" dataKey="fraud_impact" stroke="#ef4444" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Cumulative Fraud Impact" />
+                          </LineChart>
+                        </ResponsiveContainer>
+
+                        {/* Detail table */}
+                        <div className="mt-4 overflow-x-auto">
+                          <table className="w-full text-xs border border-[var(--border)] rounded-lg">
+                            <thead><tr>
+                              {["Date", "Description", "Counterparty", "Account", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
+                                <th key={h} className="bg-[var(--bg-hover)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {fraudWithPV.map((t: any) => (
+                                <tr key={t.id} className="border-t border-[var(--border)]">
+                                  <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
+                                  <td className="px-2 py-1.5 max-w-[150px] truncate">{t.description || "-"}</td>
+                                  <td className="px-2 py-1.5">{t.counterparty || "-"}</td>
+                                  <td className="px-2 py-1.5">{t.account || "-"}</td>
+                                  <td className="px-2 py-1.5 text-red-400 font-medium tabular-nums">{fmt(t.amount)}</td>
+                                  <td className="px-2 py-1.5 tabular-nums">{t.days}d</td>
+                                  <td className="px-2 py-1.5 text-red-400 font-semibold tabular-nums">{fmt(t.presentValue)}</td>
+                                  <td className="px-2 py-1.5 text-red-300 tabular-nums">{fmt(t.growth)} ({((t.growth / t.amount) * 100).toFixed(1)}%)</td>
+                                </tr>
+                              ))}
+                              <tr className="border-t-2 border-red-600/50 font-bold">
+                                <td className="px-2 py-2" colSpan={4}>TOTAL FRAUD IMPACT</td>
+                                <td className="px-2 py-2 text-red-400 tabular-nums">{fmt(totalStolen)}</td>
+                                <td className="px-2 py-2"></td>
+                                <td className="px-2 py-2 text-red-400 tabular-nums">{fmt(totalPV)}</td>
+                                <td className="px-2 py-2 text-red-300 tabular-nums">{fmt(totalGrowth)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
               </>
             )}
           </>
@@ -1646,7 +1799,7 @@ export default function Home() {
                 <select className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-3 py-2 text-sm"
                   value={editForm.flag} onChange={e => setEditForm(p => ({ ...p, flag: e.target.value }))}>
                   <option value="">None</option>
-                  {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
+                  {["normal", "review", "suspicious", "critical", "verified_fraud"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f}</option>)}
                 </select>
               </div>
               <div>
