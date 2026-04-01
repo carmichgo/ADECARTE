@@ -1181,20 +1181,64 @@ export default function Home() {
                           );
                         })}
                       </div>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <LineChart>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
-                          <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                          <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                          <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
-                          <Legend />
-                          {Object.entries(analyticsData.balance_by_account).map(([acct, points]: [string, any], i: number) => {
-                            const colors = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#64748b"];
-                            if (!selectedAccounts.has(acct)) return null;
-                            return <Line key={acct} data={points} type="monotone" dataKey="balance" stroke={colors[i % colors.length]} strokeWidth={2} dot={false} name={acct} />;
-                          })}
-                        </LineChart>
-                      </ResponsiveContainer>
+                      {(() => {
+                        // Merge all account data into unified dataset
+                        const allDates = new Set<string>();
+                        const accountData = analyticsData.balance_by_account as Record<string, Array<{date: string; balance: number}>>;
+                        for (const [acct, points] of Object.entries(accountData)) {
+                          if (!selectedAccounts.has(acct)) continue;
+                          for (const p of points) allDates.add(p.date);
+                        }
+                        const sortedDates = [...allDates].sort((a, b) => {
+                          const da = new Date(a).getTime(), db = new Date(b).getTime();
+                          if (!isNaN(da) && !isNaN(db)) return da - db;
+                          return a.localeCompare(b);
+                        });
+
+                        // Build merged rows, forward-filling last known balance
+                        const merged = sortedDates.map(date => {
+                          const row: any = { date };
+                          for (const [acct, points] of Object.entries(accountData)) {
+                            if (!selectedAccounts.has(acct)) continue;
+                            const match = points.find(p => p.date === date);
+                            if (match) {
+                              row[acct] = match.balance;
+                            }
+                          }
+                          return row;
+                        });
+                        // Forward-fill missing values
+                        const lastKnown: Record<string, number> = {};
+                        for (const row of merged) {
+                          for (const acct of Object.keys(accountData)) {
+                            if (!selectedAccounts.has(acct)) continue;
+                            if (row[acct] !== undefined) {
+                              lastKnown[acct] = row[acct];
+                            } else if (lastKnown[acct] !== undefined) {
+                              row[acct] = lastKnown[acct];
+                            }
+                          }
+                        }
+
+                        const colors = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#64748b"];
+                        const acctKeys = Object.keys(accountData);
+
+                        return (
+                          <ResponsiveContainer width="100%" height={350}>
+                            <LineChart data={merged}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#2a2e3d" />
+                              <XAxis dataKey="date" tick={{ fill: "#8b8d98", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                              <YAxis tick={{ fill: "#8b8d98", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid #2a2e3d", borderRadius: 8, fontSize: 12 }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
+                              <Legend />
+                              {acctKeys.map((acct, i) => {
+                                if (!selectedAccounts.has(acct)) return null;
+                                return <Line key={acct} type="monotone" dataKey={acct} stroke={colors[i % colors.length]} strokeWidth={2} dot={false} connectNulls />;
+                              })}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
