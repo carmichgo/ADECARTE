@@ -749,6 +749,31 @@ export default function Home() {
               <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Filter</button>
               <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-hover)]">Clear</button>
             </div>
+            {selectedIds.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">
+                <span className="text-sm font-semibold">{selectedIds.size} selected</span>
+                <div className="h-4 w-px bg-[var(--border)]" />
+                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
+                  <option value="">Set Category...</option>
+                  {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </select>
+                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
+                  <option value="">Set Flag...</option>
+                  {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+                <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded text-sm">Apply</button>
+                <div className="h-4 w-px bg-[var(--border)]" />
+                <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
+                  className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded text-sm font-medium">
+                  {bulkAiLoading ? <><span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> AI...</> : `AI Categorize (${selectedIds.size})`}
+                </button>
+                <div className="h-4 w-px bg-[var(--border)]" />
+                <button onClick={bulkDelete}
+                  className="px-3 py-1 bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 rounded text-sm font-medium">
+                  Delete ({selectedIds.size})
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm border border-[var(--border)] rounded-lg">
                 <thead>
@@ -823,31 +848,6 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            {selectedIds.size > 0 && (
-              <div className="flex flex-wrap items-center gap-3 mt-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg">
-                <span className="text-sm font-semibold">{selectedIds.size} selected</span>
-                <div className="h-4 w-px bg-[var(--border)]" />
-                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
-                  <option value="">Set Category...</option>
-                  {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-                <select className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-2 py-1" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
-                  <option value="">Set Flag...</option>
-                  {["normal", "review", "suspicious", "critical"].map(f => <option key={f} value={f}>{f}</option>)}
-                </select>
-                <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded text-sm">Apply</button>
-                <div className="h-4 w-px bg-[var(--border)]" />
-                <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
-                  className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded text-sm font-medium">
-                  {bulkAiLoading ? <><span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> AI...</> : `AI Categorize (${selectedIds.size})`}
-                </button>
-                <div className="h-4 w-px bg-[var(--border)]" />
-                <button onClick={bulkDelete}
-                  className="px-3 py-1 bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 rounded text-sm font-medium">
-                  Delete ({selectedIds.size})
-                </button>
-              </div>
-            )}
           </>
         )}
 
