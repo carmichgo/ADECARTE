@@ -455,7 +455,7 @@ export default function Home() {
         setAiPreview(data.preview);
         setAiPreviewAccepted(new Set(data.preview.map((p: any) => p.id)));
         const flagged = data.preview.filter((r: any) => r.flag === "suspicious" || r.flag === "critical").length;
-        setAiStatus({ type: "success", msg: `${data.preview.length} proposals ready. ${flagged} flagged suspicious/critical. Review below and apply.` });
+        setAiStatus({ type: "success", msg: `${data.preview.length} proposals ready (max 100 per run). ${flagged} flagged suspicious/critical. Review below and apply. Run again for more.` });
       } else {
         setAiStatus({ type: "success", msg: data.message || "No transactions to categorize." });
       }

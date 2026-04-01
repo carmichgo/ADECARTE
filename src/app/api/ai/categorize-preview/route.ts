@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from("transactions")
     .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
     .or("category.eq.,category.is.null")
-    .limit(500);
+    .limit(100);
 
   if (!uncategorized || uncategorized.length === 0) {
     return NextResponse.json({ message: "All transactions are already categorized", preview: [] });
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   ).join("\n");
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 40;
+  const batchSize = 50;
   const allResults: any[] = [];
 
   for (let i = 0; i < uncategorized.length; i += batchSize) {
