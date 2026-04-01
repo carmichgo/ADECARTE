@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Papa from "papaparse";
 import ReactMarkdown from "react-markdown";
 import {
@@ -90,6 +90,11 @@ export default function Home() {
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
   const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools">("overview");
+  // Suspicious tab state
+  const [suspFilter, setSuspFilter] = useState({ flag: "all", category: "", search: "", counterparty: "" });
+  const [suspSort, setSuspSort] = useState<{ field: string; desc: boolean }>({ field: "amount", desc: false });
+  const [suspSelected, setSuspSelected] = useState<Set<number>>(new Set());
+  const [suspExpanded, setSuspExpanded] = useState<number | null>(null);
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -1237,90 +1242,251 @@ export default function Home() {
         )}
 
         {/* ═══ Suspicious ═══ */}
-        {tab === "suspicious" && (
-          <div className="p-6 lg:p-8">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-[var(--text)]">Suspicious Activity</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">Flagged transactions requiring investigation</p>
+        {tab === "suspicious" && (() => {
+          // Filter suspicious transactions
+          let filtered = suspiciousTxns;
+          if (suspFilter.flag !== "all") filtered = filtered.filter(t => t.flag === suspFilter.flag);
+          if (suspFilter.category) filtered = filtered.filter(t => t.category === suspFilter.category);
+          if (suspFilter.counterparty) filtered = filtered.filter(t => (t.counterparty || "").toLowerCase().includes(suspFilter.counterparty.toLowerCase()));
+          if (suspFilter.search) {
+            const s = suspFilter.search.toLowerCase();
+            filtered = filtered.filter(t => (t.description || "").toLowerCase().includes(s) || (t.notes || "").toLowerCase().includes(s) || (t.counterparty || "").toLowerCase().includes(s) || (t.reference || "").toLowerCase().includes(s));
+          }
+          // Sort
+          filtered = [...filtered].sort((a: any, b: any) => {
+            let va = a[suspSort.field] ?? ""; let vb = b[suspSort.field] ?? "";
+            if (typeof va === "number" && typeof vb === "number") return suspSort.desc ? vb - va : va - vb;
+            return suspSort.desc ? String(vb).localeCompare(String(va)) : String(va).localeCompare(String(vb));
+          });
+
+          // Computed stats
+          const active = filtered.filter(t => t.flag !== "disqualified");
+          const totalAmount = active.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const verifiedCount = filtered.filter(t => t.flag === "verified_fraud").length;
+          const verifiedAmount = filtered.filter(t => t.flag === "verified_fraud").reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const criticalCount = filtered.filter(t => t.flag === "critical").length;
+          const suspiciousCount = filtered.filter(t => t.flag === "suspicious").length;
+          const uniqueCounterparties = new Set(filtered.map(t => t.counterparty).filter(Boolean)).size;
+          const uniqueAccounts = new Set(filtered.map(t => t.account || t.account_name).filter(Boolean)).size;
+
+          // Categories and counterparties for filters
+          const suspCategories = [...new Set(suspiciousTxns.map(t => t.category).filter(Boolean))].sort();
+          const suspCounterparties = [...new Set(suspiciousTxns.map(t => t.counterparty).filter(Boolean))].sort();
+
+          // Summary by category
+          const byCategory: Record<string, { count: number; total: number }> = {};
+          active.forEach(t => { const cat = t.category || "Unknown"; if (!byCategory[cat]) byCategory[cat] = { count: 0, total: 0 }; byCategory[cat].count++; byCategory[cat].total += Math.abs(t.amount || 0); });
+
+          // Summary by counterparty
+          const byCounterparty: Record<string, { count: number; total: number }> = {};
+          active.forEach(t => { const cp = t.counterparty || "Unknown"; if (!byCounterparty[cp]) byCounterparty[cp] = { count: 0, total: 0 }; byCounterparty[cp].count++; byCounterparty[cp].total += Math.abs(t.amount || 0); });
+
+          // Export filtered suspicious
+          const exportSuspicious = () => {
+            const headers = ["Date", "Description", "Amount", "Direction", "Counterparty", "Account", "Bank", "Category", "Flag", "Notes"];
+            const rows = filtered.map(t => [t.date, t.description, t.amount, t.direction, t.counterparty, t.account || t.account_name, t.bank, t.category, t.flag, t.notes].map(v => {
+              const s = String(v ?? ""); return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+            }).join(","));
+            const csv = [headers.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = "suspicious_transactions.csv"; a.click();
+            URL.revokeObjectURL(url);
+          };
+
+          return (
+          <div className="p-6 lg:p-8 max-w-[1600px]">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-[var(--text)]">Suspicious Activity</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">{suspiciousTxns.length} flagged transactions from all data</p>
+              </div>
+              <button onClick={exportSuspicious} className="px-4 py-2 border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors">
+                Export Suspicious CSV
+              </button>
             </div>
-            {suspiciousTxns.length > 0 && (
-              <div className="p-4 rounded-lg mb-4 bg-red-50 border border-red-200 text-center font-semibold">
-                ⚠ {suspiciousTxns.length} suspicious transactions — Total: {fmt(suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0))}
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+              {([
+                ["Total Flagged", `${filtered.length}`, "", ""],
+                ["Total Amount", fmt(totalAmount), "", "text-red-600"],
+                ["Verified Fraud", `${verifiedCount}`, fmt(verifiedAmount), "text-red-600"],
+                ["Critical", `${criticalCount}`, "", "text-orange-600"],
+                ["Suspicious", `${suspiciousCount}`, "", "text-amber-600"],
+                ["Counterparties", `${uniqueCounterparties}`, "", ""],
+                ["Accounts", `${uniqueAccounts}`, "", ""],
+              ] as [string, string, string, string][]).map(([label, value, sub, color], i) => (
+                <div key={i} className="bg-white border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm">
+                  <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
+                  <div className={`text-lg font-bold mt-0.5 ${color}`}>{value}</div>
+                  {sub && <div className="text-[10px] text-[var(--text-muted)]">{sub}</div>}
+                </div>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <input placeholder="Search descriptions, notes, counterparties..."
+                  className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 w-72"
+                  value={suspFilter.search} onChange={e => setSuspFilter(p => ({ ...p, search: e.target.value }))} />
+                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                  value={suspFilter.flag} onChange={e => setSuspFilter(p => ({ ...p, flag: e.target.value }))}>
+                  <option value="all">All Flags</option>
+                  <option value="verified_fraud">Verified Fraud</option>
+                  <option value="critical">Critical</option>
+                  <option value="suspicious">Suspicious</option>
+                </select>
+                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                  value={suspFilter.category} onChange={e => setSuspFilter(p => ({ ...p, category: e.target.value }))}>
+                  <option value="">All Categories</option>
+                  {suspCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                  value={suspFilter.counterparty} onChange={e => setSuspFilter(p => ({ ...p, counterparty: e.target.value }))}>
+                  <option value="">All Counterparties</option>
+                  {suspCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {(suspFilter.search || suspFilter.flag !== "all" || suspFilter.category || suspFilter.counterparty) && (
+                  <button onClick={() => setSuspFilter({ flag: "all", category: "", search: "", counterparty: "" })}
+                    className="text-xs text-indigo-600 hover:underline">Clear filters</button>
+                )}
+                <span className="text-xs text-[var(--text-muted)] ml-auto">{filtered.length} results</span>
+              </div>
+            </div>
+
+            {/* Bulk actions */}
+            {suspSelected.size > 0 && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-indigo-300 rounded-xl shadow-sm">
+                <span className="text-sm font-semibold">{suspSelected.size} selected</span>
+                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-2.5 py-1.5"
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    const flag = e.target.value;
+                    fetch("/api/transactions/bulk-update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [...suspSelected], updates: { flag } }) })
+                      .then(() => { loadTransactions(); loadStats(); setSuspSelected(new Set()); });
+                    e.target.value = "";
+                  }}>
+                  <option value="">Change flag...</option>
+                  {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
               </div>
             )}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-[var(--border)] rounded-2xl">
-                <thead>
-                  <tr>
-                    {["Date", "Description", "Amount", "Direction", "Symbol", "Security", "Qty", "Account", "Strategy", "Category", "Flag", "AI Notes", "Actions"].map(h => (
-                      <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2 text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {suspiciousTxns.length === 0 ? (
-                    <tr><td colSpan={13} className="text-center text-[var(--text-muted)] py-8">No suspicious transactions found. Run AI categorization to detect fraud patterns.</td></tr>
-                  ) : suspiciousTxns.map(t => (
-                    <tr key={t.id} className="hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]">
-                      <td className="px-3 py-2 whitespace-nowrap">{t.date || "-"}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate">{t.description || "-"}</td>
-                      <td className={`px-3 py-2 tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
-                      <td className="px-3 py-2">{t.direction ? <span className={
-                        t.direction.toLowerCase().match(/internal|transfer between/) ? "text-amber-600 font-semibold" :
-                        t.direction.toLowerCase().match(/^(buy|in|incoming|deposit|credit|contribut|receive)/) ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"
-                      }>{t.direction}</span> : "-"}</td>
-                      <td className="px-3 py-2 font-mono">{t.symbol || "-"}</td>
-                      <td className="px-3 py-2 max-w-[150px] truncate">{t.security || "-"}</td>
-                      <td className="px-3 py-2 tabular-nums">{t.quantity || "-"}</td>
-                      <td className="px-3 py-2">{t.account || t.account_name || "-"}</td>
-                      <td className="px-3 py-2">{t.strategy || "-"}</td>
-                      <td className="px-3 py-2">{t.category}</td>
-                      <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
-                      <td className="px-3 py-2 max-w-[250px] text-xs text-[var(--text-muted)] truncate" title={t.notes}>{t.notes || "-"}</td>
-                      <td className="px-3 py-2"><button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button></td>
+
+            {/* Table */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden mb-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="bg-[var(--bg-muted)] px-3 py-2.5 w-8"><input type="checkbox"
+                        checked={suspSelected.size === filtered.length && filtered.length > 0}
+                        onChange={() => suspSelected.size === filtered.length ? setSuspSelected(new Set()) : setSuspSelected(new Set(filtered.map(t => t.id)))} /></th>
+                      {([["date","Date"],["description","Description"],["amount","Amount"],["counterparty","Counterparty"],["account","Account"],["bank","Bank"],["direction","Dir"],["category","Category"],["flag","Flag"]] as [string,string][]).map(([key, label]) => (
+                        <th key={key} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2.5 text-left cursor-pointer hover:text-[var(--text)] select-none"
+                          onClick={() => setSuspSort(prev => prev.field === key ? { field: key, desc: !prev.desc } : { field: key, desc: true })}>
+                          {label} {suspSort.field === key ? (suspSort.desc ? "↓" : "↑") : ""}
+                        </th>
+                      ))}
+                      <th className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2.5">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={11} className="text-center text-[var(--text-muted)] py-12">No suspicious transactions match your filters</td></tr>
+                    ) : filtered.map(t => (
+                      <React.Fragment key={t.id}>
+                        <tr className={`border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] ${suspSelected.has(t.id) ? "bg-indigo-50/50" : ""}`}>
+                          <td className="px-3 py-2.5"><input type="checkbox" checked={suspSelected.has(t.id)}
+                            onChange={() => { const n = new Set(suspSelected); n.has(t.id) ? n.delete(t.id) : n.add(t.id); setSuspSelected(n); }} /></td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">{t.date || "-"}</td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <div className="truncate" title={t.description}>{t.description || "-"}</div>
+                          </td>
+                          <td className={`px-3 py-2.5 tabular-nums font-semibold ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
+                          <td className="px-3 py-2.5">{t.counterparty || "-"}</td>
+                          <td className="px-3 py-2.5">{t.account || t.account_name || "-"}</td>
+                          <td className="px-3 py-2.5 text-[var(--text-muted)]">{t.bank || "-"}</td>
+                          <td className="px-3 py-2.5">{t.direction || "-"}</td>
+                          <td className="px-3 py-2.5">{t.category || "-"}</td>
+                          <td className="px-3 py-2.5"><FlagBadge flag={t.flag} /></td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex gap-1">
+                              <button onClick={() => setSuspExpanded(suspExpanded === t.id ? null : t.id)}
+                                className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">{suspExpanded === t.id ? "Hide" : "View"}</button>
+                              <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button>
+                            </div>
+                          </td>
+                        </tr>
+                        {suspExpanded === t.id && (
+                          <tr className="bg-[var(--bg-page)]">
+                            <td colSpan={11} className="px-6 py-4">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                                <div><span className="text-[var(--text-muted)] font-medium">Description:</span><p className="mt-1 text-[var(--text)]">{t.description || "-"}</p></div>
+                                <div><span className="text-[var(--text-muted)] font-medium">Security:</span><p className="mt-1">{t.security || "-"} {t.symbol ? `(${t.symbol})` : ""}</p></div>
+                                <div><span className="text-[var(--text-muted)] font-medium">Reference:</span><p className="mt-1">{t.reference || "-"}</p></div>
+                                <div><span className="text-[var(--text-muted)] font-medium">Unit Price:</span><p className="mt-1">{t.unit_price ? fmt(t.unit_price) : "-"}</p></div>
+                                <div><span className="text-[var(--text-muted)] font-medium">Quantity:</span><p className="mt-1">{t.quantity || "-"}</p></div>
+                                <div><span className="text-[var(--text-muted)] font-medium">Settle Date:</span><p className="mt-1">{t.settle_date || "-"}</p></div>
+                                <div className="col-span-2 md:col-span-3"><span className="text-[var(--text-muted)] font-medium">AI Notes:</span><p className="mt-1 text-[var(--text-secondary)]">{t.notes || "-"}</p></div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            {suspiciousTxns.length > 0 && (() => {
-              const byCategory: Record<string, { count: number; total: number }> = {};
-              suspiciousTxns.forEach(t => {
-                const cat = t.category || "Unknown";
-                if (!byCategory[cat]) byCategory[cat] = { count: 0, total: 0 };
-                byCategory[cat].count++;
-                byCategory[cat].total += t.amount || 0;
-              });
-              const totalSusp = suspiciousTxns.reduce((s, t) => s + (t.amount || 0), 0);
-              return (
-                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mt-4">
-                  <h3 className="font-semibold mb-3">Investigation Summary</h3>
+
+            {/* Summary Cards */}
+            {filtered.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* By Category */}
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
+                  <h3 className="text-sm font-semibold mb-3">By Category</h3>
                   <table className="w-full text-sm">
-                    <thead><tr>
-                      <th className="text-left text-[var(--text-muted)] text-xs uppercase px-3 py-2">Category</th>
-                      <th className="text-left text-[var(--text-muted)] text-xs uppercase px-3 py-2">Count</th>
-                      <th className="text-left text-[var(--text-muted)] text-xs uppercase px-3 py-2">Total Amount</th>
+                    <thead><tr className="text-[var(--text-muted)] text-xs uppercase">
+                      <th className="text-left py-1.5">Category</th><th className="text-right py-1.5">Count</th><th className="text-right py-1.5">Amount</th>
                     </tr></thead>
                     <tbody>
-                      {Object.entries(byCategory).map(([cat, d]) => (
-                        <tr key={cat} className="border-b border-[var(--border-subtle)]">
-                          <td className="px-3 py-2">{cat}</td>
-                          <td className="px-3 py-2">{d.count}</td>
-                          <td className="px-3 py-2 text-red-600 font-semibold">{fmt(d.total)}</td>
+                      {Object.entries(byCategory).sort((a, b) => b[1].total - a[1].total).map(([cat, d]) => (
+                        <tr key={cat} className="border-t border-[var(--border-subtle)]">
+                          <td className="py-1.5">{cat}</td>
+                          <td className="py-1.5 text-right tabular-nums">{d.count}</td>
+                          <td className="py-1.5 text-right tabular-nums text-red-600 font-medium">{fmt(d.total)}</td>
                         </tr>
                       ))}
-                      <tr className="border-t-2 border-[var(--border)] font-bold">
-                        <td className="px-3 py-2">TOTAL SUSPICIOUS</td>
-                        <td className="px-3 py-2">{suspiciousTxns.length}</td>
-                        <td className="px-3 py-2 text-red-600">{fmt(totalSusp)}</td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
-              );
-            })()}
+                {/* By Counterparty */}
+                <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
+                  <h3 className="text-sm font-semibold mb-3">By Counterparty</h3>
+                  <div className="max-h-[250px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-[var(--text-muted)] text-xs uppercase sticky top-0 bg-white">
+                        <th className="text-left py-1.5">Counterparty</th><th className="text-right py-1.5">Count</th><th className="text-right py-1.5">Amount</th>
+                      </tr></thead>
+                      <tbody>
+                        {Object.entries(byCounterparty).sort((a, b) => b[1].total - a[1].total).map(([cp, d]) => (
+                          <tr key={cp} className="border-t border-[var(--border-subtle)]">
+                            <td className="py-1.5">{cp}</td>
+                            <td className="py-1.5 text-right tabular-nums">{d.count}</td>
+                            <td className="py-1.5 text-right tabular-nums text-red-600 font-medium">{fmt(d.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
 
         {/* ═══ Analytics ═══ */}
         {tab === "analytics" && (
