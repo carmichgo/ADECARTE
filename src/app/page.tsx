@@ -401,10 +401,34 @@ export default function Home() {
 
   // ── Expanded rows ───
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [aiCategorizingIds, setAiCategorizingIds] = useState<Set<number>>(new Set());
   const toggleExpand = (id: number) => {
     const next = new Set(expandedRows);
     next.has(id) ? next.delete(id) : next.add(id);
     setExpandedRows(next);
+  };
+
+  const aiCategorizeSingle = async (id: number) => {
+    setAiCategorizingIds(prev => { const n = new Set(prev); n.add(id); return n; });
+    try {
+      const res = await fetch("/api/ai/categorize-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (!data.error) {
+        // Update the transaction in-place
+        setTransactions(prev => prev.map(t => t.id === id ? {
+          ...t, category: data.category, subcategory: data.subcategory,
+          flag: data.flag, notes: `[AI: ${data.confidence}] ${data.reasoning}`,
+          categorized_by: "ai"
+        } : t));
+      }
+    } catch {}
+    setAiCategorizingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   };
 
   // ── Derived ───
@@ -724,7 +748,14 @@ export default function Home() {
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
-                      <td className="px-3 py-2 text-center"><button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-hover)]">Edit</button></td>
+                      <td className="px-3 py-2 text-center flex gap-1 justify-center">
+                        <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-hover)]">Edit</button>
+                        <button onClick={() => aiCategorizeSingle(t.id)} disabled={aiCategorizingIds.has(t.id)}
+                          className="px-2 py-1 text-xs border border-amber-500/40 text-amber-400 rounded hover:bg-amber-500/10 disabled:opacity-50"
+                          title="AI categorize this transaction">
+                          {aiCategorizingIds.has(t.id) ? <span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> : "AI"}
+                        </button>
+                      </td>
                     </tr>
                     );
                   })}

@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const rawAmount = parseAmount(row[fieldMap.amount] || "");
     const direction = (row[fieldMap.direction] || "").trim().toLowerCase();
     // Make amount negative for withdrawals, positive for contributions
-    const isWithdraw = direction.match(/^(withdraw|sell|out|outgoing|debit|payment|disbursement)/) && !direction.match(/internal|transfer between/);
+    const isWithdraw = direction.match(/^(withdraw|withdrawal|sell|out|outgoing|debit|payment|disbursement)/) && !direction.match(/internal|transfer between/);
     const isContribution = direction.match(/^(contribut|buy|in|incoming|deposit|credit|receive)/);
     const amount = isWithdraw ? -Math.abs(rawAmount) : isContribution ? Math.abs(rawAmount) : rawAmount;
 
