@@ -450,7 +450,8 @@ export default function Home() {
         setTransactions(prev => prev.map(t => t.id === id ? {
           ...t, category: data.category, subcategory: data.subcategory,
           flag: data.flag, notes: `[AI: ${data.confidence}] ${data.reasoning}`,
-          categorized_by: "ai"
+          categorized_by: "ai",
+          ...(data.direction ? { direction: data.direction } : {}),
         } : t));
       }
     } catch {}

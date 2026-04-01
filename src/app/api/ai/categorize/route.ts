@@ -97,9 +97,15 @@ For each transaction, respond with a JSON array where each element has:
 - "category": one of the available categories (MUST match exactly)
 - "subcategory": optional more specific label
 - "flag": one of "normal", "review", "suspicious", "critical"
-- "direction": one of "Contribution", "Withdraw", "Internal Transfer" or null to keep current
+- "direction": MUST be one of "Contribution", "Withdraw", "Internal Transfer"
 - "confidence": 0.0-1.0 how confident you are
 - "reasoning": brief explanation of why this category and flag
+
+Direction rules:
+- "Contribution" = money coming IN (deposits, income, credits)
+- "Withdraw" = money going OUT (payments, withdrawals, debits)
+- "Internal Transfer" = money moving between the entity's OWN accounts (not real inflow/outflow)
+Always set direction. If a transaction moves money between accounts owned by the same entity, it is "Internal Transfer".
 
 Be aggressive about flagging suspicious transactions - it's better to flag something for review than to miss fraud.
 

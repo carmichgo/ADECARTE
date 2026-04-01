@@ -62,11 +62,16 @@ Respond with ONLY a JSON object:
   "category": "exact category name from the list",
   "subcategory": "optional specific label",
   "flag": "normal" | "review" | "suspicious" | "critical",
-  "direction": "Contribution" | "Withdraw" | "Internal Transfer" | null,
+  "direction": "Contribution" | "Withdraw" | "Internal Transfer",
   "confidence": 0.0-1.0,
   "reasoning": "brief explanation"
 }
-Set direction to null to keep the current value, or change it if the transaction is clearly an internal transfer, contribution, or withdrawal.`;
+
+IMPORTANT for direction:
+- "Contribution" = money coming IN (deposits, income, credits)
+- "Withdraw" = money going OUT (payments, withdrawals, debits)
+- "Internal Transfer" = money moving between the entity's OWN accounts (not real inflow/outflow)
+You MUST always set direction. If a transaction moves money between accounts owned by the same entity, it is "Internal Transfer".`;
 
   try {
     const response = await client.messages.create({
