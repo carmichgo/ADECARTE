@@ -36,6 +36,15 @@ const fmt = (n: number | null) => {
 };
 
 export default function Home() {
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("adecarte_theme") === "dark";
+    return false;
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    if (typeof window !== "undefined") localStorage.setItem("adecarte_theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+
   const [tab, setTab] = useState<Tab>("dashboard");
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -725,11 +734,22 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="p-3 border-t border-[var(--border)]">
+        <div className="p-3 border-t border-[var(--border)] space-y-2">
           <a href="/api/export"
             className="flex items-center justify-center gap-2 w-full text-[13px] font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] transition-all">
             Export CSV
           </a>
+          <button onClick={() => setDarkMode(!darkMode)}
+            className="flex items-center justify-center gap-2 w-full text-[13px] font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] transition-all">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              {darkMode ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+              )}
+            </svg>
+            {darkMode ? "Light Mode" : "Dark Mode"}
+          </button>
         </div>
       </nav>
 
@@ -1506,17 +1526,17 @@ export default function Home() {
                         </p>
                         <ResponsiveContainer width="100%" height={480}>
                           <LineChart data={raw}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                             <XAxis dataKey="date"
-                              tick={{ fill: "#a3a3a3", fontSize: 11 }}
+                              tick={{ fill: "var(--chart-tick)", fontSize: 11 }}
                               angle={-45} textAnchor="end" height={70}
                               tickFormatter={formatTick}
                               interval={tickInterval || "preserveStartEnd"}
                               minTickGap={40}
                             />
-                            <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <YAxis tick={{ fill: "var(--chart-tick)", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
                             <Tooltip
-                              contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", color: "#0f0f0f" }}
+                              contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.1)", color: "var(--tooltip-text)" }}
                               formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]}
                             />
                             <Legend />
@@ -1541,7 +1561,7 @@ export default function Home() {
                             <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} name="Balance" />
                             <Line type="monotone" dataKey="inflow" stroke="#22c55e" strokeWidth={1} dot={false} name="Daily Inflow" />
                             <Line type="monotone" dataKey="outflow" stroke="#ef4444" strokeWidth={1} dot={false} name="Daily Outflow" />
-                            <Brush dataKey="date" height={30} stroke="#6366f1" fill="#fafafa" travellerWidth={10}
+                            <Brush dataKey="date" height={30} stroke="#6366f1" fill="var(--brush-bg)" travellerWidth={10}
                               onChange={(range: any) => {
                                 if (range && typeof range.startIndex === "number") {
                                   setBrushRange({ start: range.startIndex, end: range.endIndex });
@@ -1641,10 +1661,10 @@ export default function Home() {
                         return (
                           <ResponsiveContainer width="100%" height={350}>
                             <LineChart data={merged}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="date" tick={{ fill: "#a3a3a3", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                              <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                              <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                              <XAxis dataKey="date" tick={{ fill: "var(--chart-tick)", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                              <YAxis tick={{ fill: "var(--chart-tick)", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, color: "var(--tooltip-text)" }} formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
                               <Legend />
                               {acctKeys.map((acct, i) => {
                                 if (!selectedAccounts.has(acct)) return null;
@@ -1668,10 +1688,10 @@ export default function Home() {
                     <>
                       <ResponsiveContainer width="100%" height={Math.max(300, filteredTransactionCounts.length * 32)}>
                         <BarChart data={filteredTransactionCounts} layout="vertical" margin={{ left: 150 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis type="number" tick={{ fill: "#a3a3a3", fontSize: 11 }} />
-                          <YAxis dataKey="party" type="category" tick={{ fill: "#a3a3a3", fontSize: 11 }} width={140} />
-                          <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                          <XAxis type="number" tick={{ fill: "var(--chart-tick)", fontSize: 11 }} />
+                          <YAxis dataKey="party" type="category" tick={{ fill: "var(--chart-tick)", fontSize: 11 }} width={140} />
+                          <Tooltip contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, color: "var(--tooltip-text)" }} />
                           <Legend />
                           <Bar dataKey="deposits" fill="#22c55e" name="Deposits (In)" />
                           <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals (Out)" />
@@ -1821,10 +1841,10 @@ export default function Home() {
                         {/* Counterfactual chart */}
                         <ResponsiveContainer width="100%" height={350}>
                           <LineChart data={counterfactualData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="date" tick={{ fill: "#a3a3a3", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
-                            <YAxis tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 10, fontSize: 12, color: "#0f0f0f" }}
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                            <XAxis dataKey="date" tick={{ fill: "var(--chart-tick)", fontSize: 11 }} angle={-45} textAnchor="end" height={70} />
+                            <YAxis tick={{ fill: "var(--chart-tick)", fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, color: "var(--tooltip-text)" }}
                               formatter={(value: any, name: any) => [fmt(Number(value)), String(name)]} />
                             <Legend />
                             <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} dot={false} name="Actual Balance" />
