@@ -34,10 +34,8 @@ export async function GET(req: NextRequest) {
       if (!byDate[d]) byDate[d] = { date: d, raw_date: d, inflow: 0, outflow: 0, net: 0, count: 0, withdraw_count: 0, withdraw_total: 0 };
 
       const amount = t.amount || 0;
-      const dir = (t.direction || "").toLowerCase();
-      const isInternal = dir.match(/internal|transfer between/);
 
-      if (isInternal) {
+      if (isInternalTransfer(t)) {
         byDate[d].count++;
         continue;
       }
@@ -82,8 +80,7 @@ export async function GET(req: NextRequest) {
     // ── 2. Balance over time by account ──────────────────────────────
     const accountMap: Record<string, Record<string, number>> = {};
     for (const t of txns) {
-      const dir = (t.direction || "").toLowerCase();
-      if (dir.match(/internal|transfer between/)) continue;
+      if (isInternalTransfer(t)) continue;
       const acct = t.account || t.account_name || "Unknown";
       const d = t.date || "Unknown";
       if (!accountMap[acct]) accountMap[acct] = {};
@@ -118,9 +115,8 @@ export async function GET(req: NextRequest) {
         partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
       }
       const amount = t.amount || 0;
-      const dir = (t.direction || "").toLowerCase();
-      const isInternal = dir.match(/internal|transfer between/);
-      if (isInternal) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
+      const internal = isInternalTransfer(t);
+      if (internal) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
       else if (amount > 0) { partyCounts[party].deposits++; partyCounts[party].deposit_amount += Math.abs(amount); }
       else if (amount < 0) { partyCounts[party].withdrawals++; partyCounts[party].withdrawal_amount += Math.abs(amount); }
     }
@@ -145,6 +141,16 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+function isInternalTransfer(t: any): boolean {
+  const dir = (t.direction || "").toLowerCase();
+  const cat = (t.category || "").toLowerCase();
+  // Match direction: "Internal Transfer", "internal", "transfer between"
+  if (dir.match(/internal|transfer between/)) return true;
+  // Match category: "Transfers Between Accounts"
+  if (cat.match(/transfer.*between|internal.*transfer/)) return true;
+  return false;
 }
 
 function extractParty(description: string | null): string {
