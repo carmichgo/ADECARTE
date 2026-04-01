@@ -18,6 +18,7 @@ const FIELD_PATTERNS: Record<string, string[]> = {
   security: ["security", "instrument", "titulo", "security name"],
   strategy: ["strategy", "estrategia"],
   direction: ["direction", "side", "type", "buy/sell", "direccion"],
+  bank: ["bank", "custodian", "broker", "institution", "banco"],
 };
 
 function autoMapFields(headers: string[]): Record<string, string> {
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
     security: (row[fieldMap.security] || "").trim(),
     strategy: (row[fieldMap.strategy] || "").trim(),
     direction: (row[fieldMap.direction] || "").trim(),
+    bank: (row[fieldMap.bank] || "").trim(),
     raw_data: row,
     category: "",
     subcategory: "",

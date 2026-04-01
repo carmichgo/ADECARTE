@@ -5,7 +5,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const data = await req.json();
   const id = params.id;
 
-  const allowed = ["category", "subcategory", "flag", "notes", "counterparty", "direction"];
+  const allowed = ["category", "subcategory", "flag", "notes", "counterparty", "direction", "bank"];
   const updates: Record<string, any> = {};
 
   for (const key of allowed) {

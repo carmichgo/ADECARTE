@@ -17,7 +17,7 @@ interface Transaction {
   unit_price: number; quantity: number; currency: string; account: string;
   account_name: string; reference: string; counterparty: string;
   symbol: string; security: string; strategy: string; direction: string;
-  category: string; subcategory: string; flag: string; notes: string;
+  bank: string; category: string; subcategory: string; flag: string; notes: string;
   categorized_by: string; raw_data: any;
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
@@ -51,7 +51,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "" });
+  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
@@ -89,6 +89,7 @@ export default function Home() {
   const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "clusters" | "fraud" | "tools">("overview");
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -461,7 +462,7 @@ export default function Home() {
   // ── Edit ───
   const openEdit = (t: Transaction) => {
     setEditTxn(t);
-    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "" });
+    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "" });
   };
 
   const saveEdit = async () => {
@@ -1295,11 +1296,69 @@ export default function Home() {
         {tab === "analytics" && (
           <div className="p-6 lg:p-8 max-w-[1600px]">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-[var(--text)]">Analytics & Fund Flow</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">Charts, cluster detection, and fraud impact analysis</p>
+              <h2 className="text-xl font-semibold text-[var(--text)]">Analytics</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Investigate fund flows, detect patterns, and assess fraud impact</p>
             </div>
 
-            {/* AI Party Extraction */}
+            {/* Analytics sub-tabs */}
+            <div className="flex items-center gap-1 border-b border-[var(--border)] mb-6">
+              {([
+                ["overview", "Overview"],
+                ["counterparties", "Counterparties"],
+                ["clusters", "Clusters"],
+                ["fraud", "Fraud Impact"],
+                ["tools", "AI Tools"],
+              ] as [typeof analyticsTab, string][]).map(([key, label]) => (
+                <button key={key} onClick={() => setAnalyticsTab(key)}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                    analyticsTab === key
+                      ? "border-[var(--text)] text-[var(--text)]"
+                      : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* === Overview Tab === */}
+            {analyticsTab === "overview" && (<>
+
+            {/* Category Filter */}
+            {allCategories.length > 0 && (
+              <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-[var(--text)]">Filter by Category</h3>
+                  {excludedCategories.size > 0 && (
+                    <button onClick={() => setExcludedCategories(new Set())}
+                      className="text-xs text-indigo-600 hover:underline">Reset ({excludedCategories.size} excluded)</button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {allCategories.map(cat => {
+                    const excluded = excludedCategories.has(cat);
+                    return (
+                      <button key={cat} onClick={() => {
+                        const next = new Set(excludedCategories);
+                        excluded ? next.delete(cat) : next.add(cat);
+                        setExcludedCategories(next);
+                      }}
+                        className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
+                          excluded
+                            ? "bg-[var(--bg-muted)] border-[var(--border)] text-[var(--text-muted)] line-through"
+                            : "bg-white border-[var(--border)] text-[var(--text-secondary)] hover:border-indigo-300"
+                        }`}>
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            </>)}
+
+            {/* === Tools Tab === */}
+            {analyticsTab === "tools" && (<>
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -1405,47 +1464,14 @@ export default function Home() {
               )}
               {mergeStatus && <StatusMsg status={mergeStatus} />}
             </div>
+            </>)}
 
             {!analyticsData ? (
               <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
             ) : (
               <>
-                {/* Category Filter */}
-                {allCategories.length > 0 && (
-                  <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-[var(--text)]">Category Filter</h3>
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5">Exclude categories from all charts and calculations below</p>
-                      </div>
-                      {excludedCategories.size > 0 && (
-                        <button onClick={() => setExcludedCategories(new Set())}
-                          className="text-xs text-indigo-600 hover:underline">Clear all ({excludedCategories.size} excluded)</button>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {allCategories.map(cat => {
-                        const excluded = excludedCategories.has(cat);
-                        return (
-                          <button key={cat} onClick={() => {
-                            const next = new Set(excludedCategories);
-                            excluded ? next.delete(cat) : next.add(cat);
-                            setExcludedCategories(next);
-                          }}
-                            className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
-                              excluded
-                                ? "bg-[var(--bg-muted)] border-[var(--border)] text-[var(--text-muted)] line-through"
-                                : "bg-white border-[var(--border)] text-[var(--text-secondary)] hover:border-indigo-300"
-                            }`}>
-                            {cat}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Cluster Detection Config */}
+                {/* === Clusters Tab === */}
+                {analyticsTab === "clusters" && (
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-sm">Withdrawal Cluster Detection</h3>
@@ -1486,7 +1512,10 @@ export default function Home() {
                     </span>
                   </div>
                 </div>
+                )}
 
+                {/* Chart 1: Overall Balance Over Time — shown on Overview and Clusters tabs */}
+                {(analyticsTab === "overview" || analyticsTab === "clusters") && (<>
                 {/* Chart 1: Overall Balance Over Time + Clusters + AI Annotations */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Overall Balance Over Time</h3>
@@ -1595,7 +1624,7 @@ export default function Home() {
 
                 {/* Chart 2: Balance Over Time by Account */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
-                  <h3 className="font-semibold mb-1">Balance Over Time by Account</h3>
+                  <h3 className="font-semibold mb-1">Balance by Account</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-3">Track individual accounts — identify which account was drained.</p>
                   {Object.keys(analyticsData.balance_by_account).length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
@@ -1678,6 +1707,10 @@ export default function Home() {
                   )}
                 </div>
 
+                </>)}
+
+                {/* === Counterparties Tab === */}
+                {analyticsTab === "counterparties" && (<>
                 {/* Chart 3: Counterparty Breakdown */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
                   <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
@@ -1741,6 +1774,10 @@ export default function Home() {
                   )}
                 </div>
 
+                </>)}
+
+                {/* === Fraud Tab === */}
+                {analyticsTab === "fraud" && (<>
                 {/* Chart 4: Fraud Impact Analysis */}
                 <div className="bg-[var(--bg-card)] border border-red-200 rounded-lg p-5 mb-6">
                   <h3 className="font-semibold mb-1 text-red-600">Fraud Impact — Present Value Analysis</h3>
@@ -1888,6 +1925,7 @@ export default function Home() {
                     );
                   })()}
                 </div>
+                </>)}
 
               </>
             )}
@@ -2099,6 +2137,12 @@ export default function Home() {
                 <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   placeholder="Who sent or received the money"
                   value={editForm.counterparty} onChange={e => setEditForm(p => ({ ...p, counterparty: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Bank / Custodian</label>
+                <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
+                  placeholder="e.g. Pershing BNY, Schwab, Fidelity..."
+                  value={editForm.bank} onChange={e => setEditForm(p => ({ ...p, bank: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Notes</label>
