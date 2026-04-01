@@ -62,6 +62,8 @@ export default function Home() {
   const [mergeCanonical, setMergeCanonical] = useState("");
   const [mergeSearch, setMergeSearch] = useState("");
   const [mergeStatus, setMergeStatus] = useState<{ type: string; msg: string } | null>(null);
+  const [autoMergeLoading, setAutoMergeLoading] = useState(false);
+  const [autoMergePreview, setAutoMergePreview] = useState<any[] | null>(null);
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -186,6 +188,33 @@ export default function Home() {
     setMergeSelected(next);
     // Auto-set canonical to the first selected if not set
     if (!mergeCanonical && next.size > 0) setMergeCanonical([...next][0]);
+  };
+
+  const runAutoMerge = async (dryRun: boolean) => {
+    setAutoMergeLoading(true);
+    setMergeStatus({ type: "info", msg: dryRun ? "AI is analyzing counterparties for duplicates..." : "Applying merges..." });
+    try {
+      const res = await fetch("/api/ai/auto-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (data.error) {
+        setMergeStatus({ type: "error", msg: data.error });
+      } else if (dryRun) {
+        setAutoMergePreview(data.merges || []);
+        setMergeStatus({ type: "success", msg: `Found ${data.merges?.length || 0} merge groups. Review below and click "Apply All" to merge.` });
+      } else {
+        setAutoMergePreview(null);
+        setMergeStatus({ type: "success", msg: data.message });
+        loadCounterparties();
+        loadAnalytics();
+      }
+    } catch (err: any) { setMergeStatus({ type: "error", msg: err.message }); }
+    setAutoMergeLoading(false);
   };
 
   // ── Cluster detection (computed client-side) ───
@@ -854,8 +883,54 @@ export default function Home() {
 
             {/* Merge Counterparties */}
             <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
-              <h3 className="font-semibold mb-1">Merge Counterparties</h3>
-              <p className="text-xs text-[var(--text-muted)] mb-3">Select duplicate/similar counterparties and merge them into one canonical name.</p>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold">Merge Counterparties</h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">AI auto-merge or manually select duplicates.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => runAutoMerge(true)} disabled={autoMergeLoading}
+                    className="px-4 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 rounded-md text-xs font-medium">
+                    {autoMergeLoading ? <><span className="spinner mr-1"></span>Analyzing...</> : "AI Preview Merges"}
+                  </button>
+                  {autoMergePreview && autoMergePreview.length > 0 && (
+                    <button onClick={() => runAutoMerge(false)} disabled={autoMergeLoading}
+                      className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded-md text-xs font-medium text-white">
+                      Apply All ({autoMergePreview.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Auto-merge preview */}
+              {autoMergePreview && autoMergePreview.length > 0 && (
+                <div className="mb-4 border border-amber-500/30 rounded-lg overflow-hidden">
+                  <div className="bg-amber-500/10 px-3 py-2 text-xs text-amber-400 font-medium">
+                    AI found {autoMergePreview.length} merge groups — review before applying
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto">
+                    {autoMergePreview.map((g: any, i: number) => (
+                      <div key={i} className="px-3 py-2 border-t border-[var(--border)] text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-medium">{g.canonical}</span>
+                          <span className="text-[var(--text-muted)]">←</span>
+                          <span className="text-[var(--text-muted)]">{g.names.filter((n: string) => n !== g.canonical).join(", ")}</span>
+                        </div>
+                        <div className="text-[var(--text-muted)] text-[10px] mt-0.5">{g.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-[var(--bg)] px-3 py-2 flex justify-end gap-2 border-t border-[var(--border)]">
+                    <button onClick={() => setAutoMergePreview(null)} className="text-xs text-[var(--text-muted)] hover:text-white px-2 py-1 border border-[var(--border)] rounded">Dismiss</button>
+                    <button onClick={() => runAutoMerge(false)} disabled={autoMergeLoading}
+                      className="text-xs px-3 py-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 rounded font-medium">
+                      Apply All Merges
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual merge */}
               <div className="flex gap-2 mb-3 items-center">
                 <input placeholder="Search counterparties..." className="bg-[var(--bg)] border border-[var(--border)] text-sm rounded px-3 py-1.5 w-64"
                   value={mergeSearch} onChange={e => setMergeSearch(e.target.value)} />
