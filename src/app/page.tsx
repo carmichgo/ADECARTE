@@ -46,6 +46,14 @@ export default function Home() {
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
+  const [aiInstructions, setAiInstructions] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("adecarte_ai_instructions") || "";
+    return "";
+  });
+  const [investigationContext, setInvestigationContext] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("adecarte_investigation_context") || "";
+    return "";
+  });
   const [uploadStatus, setUploadStatus] = useState<{ type: string; msg: string } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -270,13 +278,27 @@ export default function Home() {
           balanceData: analyticsData?.balance_over_time || [],
           transactionCounts: analyticsData?.transaction_counts || [],
           rawTransactions: analyticsData?.raw_transactions || [],
+          instructions: aiInstructions,
+          context: investigationContext,
         }),
       });
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = { text: "Error parsing response", annotations: [] }; }
 
-      setChatMessages(prev => [...prev, { role: "ai", text: data.text || "No response", annotations: data.annotations }]);
+      const actions: string[] = [];
+      if (data.categorized?.length) actions.push(`Categorized ${data.categorized.length} transaction(s)`);
+      if (data.flagged?.length) {
+        const totalFlagged = data.flagged.reduce((s: number, f: any) => s + (f.ids?.length || 0), 0);
+        actions.push(`Flagged ${totalFlagged} transaction(s)`);
+      }
+
+      setChatMessages(prev => [...prev, {
+        role: "ai",
+        text: data.text || "No response",
+        annotations: data.annotations,
+        actions: actions.length > 0 ? actions : undefined,
+      } as any]);
       if (data.annotations && data.annotations.length > 0) {
         setAiAnnotations(prev => [...prev, ...data.annotations]);
       }
@@ -382,7 +404,11 @@ export default function Home() {
     setAiLoading(true);
     setAiStatus({ type: "info", msg: "AI is analyzing transactions. This may take a moment..." });
     try {
-      const res = await fetch("/api/ai/categorize", { method: "POST" });
+      const res = await fetch("/api/ai/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext }),
+      });
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = { error: `Server error (${res.status}): ${text.slice(0, 200)}` }; }
@@ -414,7 +440,7 @@ export default function Home() {
       const res = await fetch("/api/ai/categorize-single", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext }),
       });
       const text = await res.text();
       let data;
@@ -783,6 +809,23 @@ export default function Home() {
         {tab === "categorize" && (
           <>
             <h2 className="text-2xl font-semibold mb-6">AI Categorization</h2>
+
+            {/* Investigation Context */}
+            <div className="bg-[var(--bg-card)] border border-amber-500/30 rounded-lg p-5 mb-6">
+              <h3 className="font-semibold mb-2 text-amber-400">Investigation Context</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-2">Describe the situation — what happened, who is involved, which accounts are suspect. This context is sent to ALL AI features (categorization, analyst chat, party extraction).</p>
+              <textarea
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm min-h-[100px] mb-2"
+                placeholder="e.g. 'We suspect that an employee named X diverted funds from accounts A and B to personal accounts. The fraud may have started around March 2024. Authorized vendors include Company Y and Company Z. Any transfers to unknown personal accounts should be flagged...'"
+                value={investigationContext}
+                onChange={e => {
+                  setInvestigationContext(e.target.value);
+                  if (typeof window !== "undefined") localStorage.setItem("adecarte_investigation_context", e.target.value);
+                }}
+              />
+              <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. Persists across sessions.</p>
+            </div>
+
             <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 space-y-5">
               <div className="border border-[var(--border)] rounded-lg p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 1: Manual Categorization</h3>
@@ -790,8 +833,22 @@ export default function Home() {
                 <p className="text-sm text-[var(--text-muted)]">{stats?.categorized || 0} categorized, {stats?.uncategorized || 0} remaining</p>
               </div>
               <div className="border border-[var(--border)] rounded-lg p-4">
+                <h3 className="text-indigo-400 font-semibold mb-2">AI Instructions</h3>
+                <p className="text-sm text-[var(--text-muted)] mb-2">Give the AI context about your investigation. These instructions are used by all AI categorization (bulk, per-row, and analyst chat).</p>
+                <textarea
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm min-h-[80px] mb-2"
+                  placeholder="e.g. 'Any transfer to account X is suspicious. Payments to John Doe are authorized vendor payments. Amounts over $50k to unknown parties should be flagged critical...'"
+                  value={aiInstructions}
+                  onChange={e => {
+                    setAiInstructions(e.target.value);
+                    if (typeof window !== "undefined") localStorage.setItem("adecarte_ai_instructions", e.target.value);
+                  }}
+                />
+                <p className="text-[10px] text-[var(--text-muted)]">Saved in your browser. These instructions persist across sessions.</p>
+              </div>
+              <div className="border border-[var(--border)] rounded-lg p-4">
                 <h3 className="text-indigo-400 font-semibold mb-2">Step 2: AI Auto-Categorize</h3>
-                <p className="text-sm text-[var(--text-muted)] mb-3">Click below to let AI categorize remaining transactions using your manual labels as guidance.</p>
+                <p className="text-sm text-[var(--text-muted)] mb-3">Click below to let AI categorize remaining transactions using your manual labels and instructions as guidance.</p>
                 <button onClick={runAi} disabled={aiLoading || (stats?.uncategorized || 0) === 0}
                   className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium">
                   {aiLoading ? <><span className="spinner mr-2"></span>Running AI...</> : "Run AI Categorization"}
@@ -1245,15 +1302,24 @@ export default function Home() {
                   <div className="prose prose-invert prose-sm max-w-none prose-p:my-1.5 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1.5 prose-ul:my-1 prose-ol:my-1 prose-code:text-indigo-300 prose-code:bg-[var(--bg-card)] prose-code:px-1 prose-code:rounded prose-strong:text-white prose-a:text-indigo-400">
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
-                  {msg.annotations && msg.annotations.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-[var(--border)]">
-                      <p className="text-[10px] text-amber-400 font-medium mb-1">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} added to charts</p>
-                      {msg.annotations.map((a: any, j: number) => (
-                        <div key={j} className="text-[10px] text-[var(--text-muted)] flex gap-1">
-                          <span className="font-medium" style={{ color: a.color || "#f59e0b" }}>{a.type}</span>
-                          <span>{a.label}</span>
+                  {((msg as any).actions || (msg.annotations && msg.annotations.length > 0)) && (
+                    <div className="mt-3 pt-2 border-t border-[var(--border)] space-y-1">
+                      {(msg as any).actions?.map((a: string, j: number) => (
+                        <div key={`act-${j}`} className="text-[10px] text-green-400 font-medium flex items-center gap-1">
+                          <span>&#10003;</span> {a}
                         </div>
                       ))}
+                      {msg.annotations && msg.annotations.length > 0 && (
+                        <>
+                          <p className="text-[10px] text-amber-400 font-medium">{msg.annotations.length} annotation{msg.annotations.length > 1 ? "s" : ""} on charts</p>
+                          {msg.annotations.map((a: any, j: number) => (
+                            <div key={j} className="text-[10px] text-[var(--text-muted)] flex gap-1">
+                              <span className="font-medium" style={{ color: a.color || "#f59e0b" }}>{a.type}</span>
+                              <span>{a.label}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -4,11 +4,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 300;
 
-export async function POST() {
+export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
   }
+
+  const body = await req.json().catch(() => ({}));
+  const userInstructions = body.instructions || "";
+  const investigationContext = body.context || "";
 
   const db = getSupabase();
 
@@ -77,7 +81,7 @@ We are investigating a case where money was stolen/diverted through unauthorized
 - Round-number transfers that could indicate manual/fraudulent payments
 - Duplicate or near-duplicate transactions
 - Any patterns that suggest systematic diversion of funds
-
+${investigationContext ? `\n## INVESTIGATION BACKGROUND\n${investigationContext}\n` : ""}${userInstructions ? `\n## INVESTIGATOR INSTRUCTIONS\n${userInstructions}\n` : ""}
 ## AVAILABLE CATEGORIES
 ${categoryList}
 
@@ -93,6 +97,7 @@ For each transaction, respond with a JSON array where each element has:
 - "category": one of the available categories (MUST match exactly)
 - "subcategory": optional more specific label
 - "flag": one of "normal", "review", "suspicious", "critical"
+- "direction": one of "Contribution", "Withdraw", "Internal Transfer" or null to keep current
 - "confidence": 0.0-1.0 how confident you are
 - "reasoning": brief explanation of why this category and flag
 
@@ -115,13 +120,15 @@ Respond with ONLY the JSON array, no other text.`;
       const results = JSON.parse(resultText);
 
       for (const r of results) {
-        await db.from("transactions").update({
+        const update: any = {
           category: r.category || "Other",
           subcategory: r.subcategory || "",
           flag: r.flag || "review",
           notes: `[AI confidence: ${r.confidence ?? "?"}] ${r.reasoning || ""}`,
           categorized_by: "ai",
-        }).eq("id", r.id);
+        };
+        if (r.direction) update.direction = r.direction;
+        await db.from("transactions").update(update).eq("id", r.id);
 
         totalCategorized++;
         allResults.push(r);

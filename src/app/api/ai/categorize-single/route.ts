@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
 
-  const { id } = await req.json();
+  const { id, instructions: userInstructions, context: investigationContext } = await req.json();
   if (!id) return NextResponse.json({ error: "No transaction id" }, { status: 400 });
 
   const db = getSupabase();
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 ## AVAILABLE CATEGORIES
 ${categoryList}
 ${exampleText}
+${investigationContext ? `## INVESTIGATION BACKGROUND\n${investigationContext}\n` : ""}${userInstructions ? `## INVESTIGATOR INSTRUCTIONS\n${userInstructions}\n` : ""}
 ## TRANSACTION TO CATEGORIZE
 ${JSON.stringify({
   date: txn.date,
@@ -61,9 +62,11 @@ Respond with ONLY a JSON object:
   "category": "exact category name from the list",
   "subcategory": "optional specific label",
   "flag": "normal" | "review" | "suspicious" | "critical",
+  "direction": "Contribution" | "Withdraw" | "Internal Transfer" | null,
   "confidence": 0.0-1.0,
   "reasoning": "brief explanation"
-}`;
+}
+Set direction to null to keep the current value, or change it if the transaction is clearly an internal transfer, contribution, or withdrawal.`;
 
   try {
     const response = await client.messages.create({
@@ -77,13 +80,15 @@ Respond with ONLY a JSON object:
 
     const result = JSON.parse(text);
 
-    await db.from("transactions").update({
+    const update: any = {
       category: result.category || "Other",
       subcategory: result.subcategory || "",
       flag: result.flag || "review",
       notes: `[AI confidence: ${result.confidence ?? "?"}] ${result.reasoning || ""}`,
       categorized_by: "ai",
-    }).eq("id", id);
+    };
+    if (result.direction) update.direction = result.direction;
+    await db.from("transactions").update(update).eq("id", id);
 
     return NextResponse.json({ ...result, id });
   } catch (err: any) {

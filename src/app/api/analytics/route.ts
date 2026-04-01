@@ -37,14 +37,16 @@ export async function GET(req: NextRequest) {
       const dir = (t.direction || "").toLowerCase();
       const isInternal = dir.match(/internal|transfer between/);
 
-      if (!isInternal) {
-        if (amount > 0) {
-          byDate[d].inflow += Math.abs(amount);
-        } else if (amount < 0) {
-          byDate[d].outflow += Math.abs(amount);
-          byDate[d].withdraw_count++;
-          byDate[d].withdraw_total += Math.abs(amount);
-        }
+      if (isInternal) {
+        byDate[d].count++;
+        continue;
+      }
+      if (amount > 0) {
+        byDate[d].inflow += Math.abs(amount);
+      } else if (amount < 0) {
+        byDate[d].outflow += Math.abs(amount);
+        byDate[d].withdraw_count++;
+        byDate[d].withdraw_total += Math.abs(amount);
       }
       byDate[d].net += amount;
       byDate[d].count++;
@@ -80,6 +82,8 @@ export async function GET(req: NextRequest) {
     // ── 2. Balance over time by account ──────────────────────────────
     const accountMap: Record<string, Record<string, number>> = {};
     for (const t of txns) {
+      const dir = (t.direction || "").toLowerCase();
+      if (dir.match(/internal|transfer between/)) continue;
       const acct = t.account || t.account_name || "Unknown";
       const d = t.date || "Unknown";
       if (!accountMap[acct]) accountMap[acct] = {};
