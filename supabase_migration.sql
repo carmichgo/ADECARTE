@@ -47,6 +47,7 @@ INSERT INTO categories (name, description, is_suspicious) VALUES
     ('Taxes & Government', 'Tax payments, government fees', false),
     ('Loan & Interest', 'Loan repayments, interest charges', false),
     ('Transfers Between Accounts', 'Internal transfers', false),
+    ('Stocks', 'Stock and securities purchases, sales, and trades', false),
     ('Revenue / Income', 'Incoming revenue or payments received', false),
     ('Refunds & Returns', 'Returned payments or refunds', false),
     ('SUSPICIOUS - Unauthorized Transfer', 'Transfers not matching authorized patterns', true),
