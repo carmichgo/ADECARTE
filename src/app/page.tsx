@@ -9,7 +9,7 @@ import {
   ReferenceLine, Brush
 } from "recharts";
 
-type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics";
+type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics" | "settings";
 type Flag = "" | "normal" | "review" | "suspicious" | "critical" | "verified_fraud" | "disqualified";
 
 interface Transaction {
@@ -18,7 +18,7 @@ interface Transaction {
   account_name: string; reference: string; counterparty: string;
   symbol: string; security: string; strategy: string; direction: string;
   bank: string; category: string; subcategory: string; flag: string; notes: string;
-  categorized_by: string; raw_data: any;
+  categorized_by: string; raw_data: any; documents: any[]; fraudulent_signature: boolean | null;
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
 interface Stats {
@@ -95,6 +95,14 @@ export default function Home() {
   const [suspSort, setSuspSort] = useState<{ field: string; desc: boolean }>({ field: "amount", desc: false });
   const [suspSelected, setSuspSelected] = useState<Set<number>>(new Set());
   const [suspExpanded, setSuspExpanded] = useState<number | null>(null);
+  // Settings & Documents
+  const [refSignatures, setRefSignatures] = useState<any[]>([]);
+  const [sigUploadStatus, setSigUploadStatus] = useState<string>("");
+  // Document viewer in edit modal
+  const [editDocs, setEditDocs] = useState<any[]>([]);
+  const [docUploadStatus, setDocUploadStatus] = useState<string>("");
+  const [sigCompareResult, setSigCompareResult] = useState<any>(null);
+  const [sigComparing, setSigComparing] = useState(false);
   // Cluster detection config
   const [showClusters, setShowClusters] = useState(true);
   const [clusterMinWithdrawals, setClusterMinWithdrawals] = useState(3);
@@ -477,9 +485,62 @@ export default function Home() {
   };
 
   // ── Edit ───
-  const openEdit = (t: Transaction) => {
+  const openEdit = async (t: Transaction) => {
     setEditTxn(t);
     setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "" });
+    setEditDocs([]);
+    setDocUploadStatus("");
+    setSigCompareResult(null);
+    // Load documents for this transaction
+    try {
+      const res = await fetch(`/api/documents?transaction_id=${t.id}`, { cache: "no-store" });
+      const docs = await res.json();
+      if (Array.isArray(docs)) setEditDocs(docs);
+    } catch {}
+  };
+
+  const loadRefSignatures = async () => {
+    try {
+      const res = await fetch("/api/settings/signature", { cache: "no-store" });
+      const data = await res.json();
+      if (Array.isArray(data)) setRefSignatures(data);
+    } catch {}
+  };
+
+  const uploadDocForTxn = async (file: File) => {
+    if (!editTxn) return;
+    setDocUploadStatus("Uploading...");
+    const form = new FormData();
+    form.append("file", file);
+    form.append("transaction_id", String(editTxn.id));
+    const res = await fetch("/api/documents", { method: "POST", body: form });
+    const data = await res.json();
+    if (data.error) { setDocUploadStatus("Error: " + data.error); return; }
+    setDocUploadStatus("Uploaded!");
+    // Reload docs
+    const docsRes = await fetch(`/api/documents?transaction_id=${editTxn.id}`, { cache: "no-store" });
+    const docs = await docsRes.json();
+    if (Array.isArray(docs)) setEditDocs(docs);
+  };
+
+  const compareSignature = async (docPath: string) => {
+    if (!editTxn || refSignatures.length === 0) return;
+    setSigComparing(true);
+    setSigCompareResult(null);
+    try {
+      const res = await fetch("/api/ai/compare-signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: editTxn.id,
+          documentPath: docPath,
+          referenceSignaturePath: refSignatures[0].name,
+        }),
+      });
+      const data = await res.json();
+      setSigCompareResult(data);
+    } catch (err: any) { setSigCompareResult({ error: err.message }); }
+    setSigComparing(false);
   };
 
   const saveEdit = async () => {
@@ -653,7 +714,7 @@ export default function Home() {
 
   // ── Derived ───
   const suspiciousTxns = transactions.filter(t =>
-    t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
+    t.flag !== "disqualified" && (t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS")))
   );
 
   const toggleSelect = (id: number) => {
@@ -726,6 +787,7 @@ export default function Home() {
     categorize: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z",
     analytics: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
     suspicious: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+    settings: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
   };
 
   return (
@@ -739,7 +801,7 @@ export default function Home() {
         <div className="px-3 flex-1 overflow-y-auto">
           <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider px-2 mb-2">Investigation</div>
           <div className="space-y-0.5">
-            {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious"]] as [Tab, string][]).map(([key, label]) => (
+            {([["dashboard", "Dashboard"], ["upload", "Upload CSV"], ["transactions", "Transactions"], ["categorize", "Categorize"], ["analytics", "Analytics"], ["suspicious", "Suspicious"], ["settings", "Settings"]] as [Tab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setTab(key)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
                   tab === key
@@ -1044,7 +1106,7 @@ export default function Home() {
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
                       ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
-                      ["category", "Category"], ["flag", "Flag"], ["categorized_by", "Source"],
+                      ["category", "Category"], ["flag", "Flag"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
                         onClick={() => handleSort(f)}>
@@ -1094,6 +1156,7 @@ export default function Home() {
                       <td className="px-3 py-2">{t.counterparty || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
+                      <td className="px-3 py-2 text-center">{t.fraudulent_signature === true ? <span className="text-red-600 text-xs font-bold" title="Fraudulent signature detected">FRAUD</span> : t.fraudulent_signature === false ? <span className="text-emerald-600 text-xs" title="Signature verified">OK</span> : <span className="text-[var(--text-muted)] text-xs">-</span>}</td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
                       <td className="px-3 py-2 text-center flex gap-1 justify-center">
                         <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button>
@@ -2183,6 +2246,78 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {/* ═══ Settings ═══ */}
+        {tab === "settings" && (() => {
+          if (refSignatures.length === 0) loadRefSignatures();
+          return (
+          <div className="p-6 lg:p-8 max-w-[900px]">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-[var(--text)]">Settings</h2>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Reference signatures and configuration</p>
+            </div>
+
+            {/* Reference Signatures */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-6 mb-6">
+              <h3 className="text-sm font-semibold mb-1">Reference Signatures</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-4">Upload authentic signature images. These are compared against signatures found in transaction documents to detect forgery.</p>
+
+              <div className="mb-4">
+                <input type="file" accept="image/*" id="sig-upload" hidden
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setSigUploadStatus("Uploading...");
+                    const form = new FormData();
+                    form.append("file", file);
+                    form.append("label", "reference");
+                    const res = await fetch("/api/settings/signature", { method: "POST", body: form });
+                    const data = await res.json();
+                    if (data.error) setSigUploadStatus("Error: " + data.error);
+                    else { setSigUploadStatus("Uploaded!"); loadRefSignatures(); }
+                    e.target.value = "";
+                  }} />
+                <button onClick={() => document.getElementById("sig-upload")?.click()}
+                  className="px-4 py-2 bg-[var(--text)] text-[var(--bg)] rounded-xl text-sm font-semibold hover:opacity-80">
+                  Upload Signature Image
+                </button>
+                {sigUploadStatus && <span className="ml-3 text-xs text-[var(--text-muted)]">{sigUploadStatus}</span>}
+              </div>
+
+              {refSignatures.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)] py-4">No reference signatures uploaded yet.</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {refSignatures.map((sig, i) => (
+                    <div key={i} className="border border-[var(--border)] rounded-xl p-3">
+                      <img src={sig.url} alt={sig.name} className="w-full h-24 object-contain bg-[var(--bg-muted)] rounded-lg mb-2" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--text-muted)] truncate">{sig.name}</span>
+                        <button onClick={async () => {
+                          await fetch("/api/settings/signature", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: sig.name }) });
+                          loadRefSignatures();
+                        }} className="text-xs text-red-600 hover:underline">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="bg-[var(--bg-muted)] border border-[var(--border)] rounded-2xl p-5">
+              <h3 className="text-sm font-semibold mb-2">How Signature Verification Works</h3>
+              <ol className="text-xs text-[var(--text-secondary)] space-y-1.5 list-decimal list-inside">
+                <li>Upload one or more reference (authentic) signatures above</li>
+                <li>Attach transaction documents (PDFs, images) to each transaction via the Edit modal</li>
+                <li>Click "Compare Signature" on any document to run AI analysis</li>
+                <li>AI compares the document signature against your reference and reports: match/mismatch, confidence, and specific differences</li>
+                <li>Transactions are automatically marked with fraudulent_signature = true/false</li>
+              </ol>
+            </div>
+          </div>
+          );
+        })()}
       </main>
 
       {/* AI Chat Toggle Button (fixed) */}
@@ -2401,6 +2536,51 @@ export default function Home() {
                 <textarea className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]" rows={3}
                   value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
               </div>
+              {/* Documents */}
+              <div className="pt-3 border-t border-[var(--border)]">
+                <label className="block text-xs text-[var(--text-muted)] mb-2">Documents</label>
+                <div className="space-y-2 mb-2">
+                  {editDocs.map((doc: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 p-2 bg-[var(--bg-page)] rounded-lg text-xs">
+                      <a href={doc.url} target="_blank" rel="noopener" className="flex-1 text-indigo-600 hover:underline truncate">{doc.name}</a>
+                      <span className="text-[var(--text-muted)]">{(doc.size / 1024).toFixed(0)}KB</span>
+                      {doc.path?.match(/\.(png|jpg|jpeg|gif|webp)$/i) && refSignatures.length > 0 && (
+                        <button onClick={() => compareSignature(doc.path)} disabled={sigComparing}
+                          className="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-medium hover:bg-amber-100 disabled:opacity-50">
+                          {sigComparing ? "..." : "Compare Sig"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {editDocs.length === 0 && <p className="text-xs text-[var(--text-muted)]">No documents attached</p>}
+                </div>
+                <input type="file" id="doc-upload" hidden onChange={e => { if (e.target.files?.[0]) uploadDocForTxn(e.target.files[0]); e.target.value = ""; }} />
+                <button onClick={() => document.getElementById("doc-upload")?.click()}
+                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg hover:bg-[var(--bg-muted)]">
+                  Attach Document
+                </button>
+                {docUploadStatus && <span className="ml-2 text-xs text-[var(--text-muted)]">{docUploadStatus}</span>}
+              </div>
+
+              {/* Signature comparison result */}
+              {sigCompareResult && (
+                <div className={`p-3 rounded-xl border text-xs mt-2 ${
+                  sigCompareResult.assessment === "authentic" ? "bg-emerald-50 border-emerald-200" :
+                  sigCompareResult.assessment === "suspicious" ? "bg-amber-50 border-amber-200" :
+                  "bg-red-50 border-red-200"
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold">{sigCompareResult.assessment?.toUpperCase()}</span>
+                    <span className="text-[var(--text-muted)]">Confidence: {((sigCompareResult.confidence || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                  <p className="text-[var(--text-secondary)]">{sigCompareResult.reasoning}</p>
+                  {sigCompareResult.differences?.length > 0 && (
+                    <ul className="mt-1 list-disc list-inside text-[var(--text-muted)]">
+                      {sigCompareResult.differences.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEditTxn(null)} className="px-4 py-2 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Cancel</button>
