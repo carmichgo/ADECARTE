@@ -81,10 +81,11 @@ For each transaction, respond with a JSON array where each element has:
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
 
-IMPORTANT CATEGORY RULES:
-- "Line of Credit" = ONLY for transactions where the account IS the LOC account itself (e.g. M61750002, Loan Adela)
-- "LOC Funded Deposit" = when money arrives INTO one of our non-LOC accounts FROM the LOC (e.g. CREDIT MEMORANDUM, transfers from 0002). Set counterparty to "Line of Credit (account#)"
-- "LOC External Transfer" = when money goes FROM the LOC account to an EXTERNAL account (not ours)
+IMPORTANT CATEGORY RULES FOR LINE OF CREDIT:
+- "Line of Credit" = ONLY for transactions on the "Loan Adela" account (the loan ledger). NOT for account M61750002.
+- "LOC Funded Deposit" = ONLY when money from LOC arrives INTO one of our non-LOC accounts AND you can identify the destination as one of our accounts from the description (e.g. "Transfer of Funds From 0002 To 741713181" where 741713181 is ours). Set counterparty to "Line of Credit (source account#)"
+- "LOC External Transfer" = when money from LOC goes to an account that is NOT ours, OR when a CREDIT MEMORANDUM / LOC transaction does NOT clearly show the money landing in one of our accounts. If in doubt, use LOC External Transfer.
+- Account M61750002 is the LOC operating account — transactions ON this account going to our accounts = Internal Transfer, going to external = LOC External Transfer
 
 Do NOT include "direction" in the response — direction will not be changed.
 Be aggressive about flagging suspicious transactions.
