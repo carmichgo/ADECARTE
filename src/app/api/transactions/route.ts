@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const orderField = allowed.includes(order) ? order : "id";
     const desc = p.get("desc") === "1";
 
-    query = query.order(orderField, { ascending: !desc }).limit(10000);
+    query = query.order(orderField, { ascending: !desc }).limit(50000);
 
     const { data, error } = await query;
     if (error) {

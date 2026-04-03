@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name, bank, direction").limit(10000);
+  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name, bank, direction").limit(50000);
 
   if (error) {
     console.error("Stats query error:", error);

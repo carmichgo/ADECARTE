@@ -932,15 +932,6 @@ export default function Home() {
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Outstanding</div>
                 <div className="text-lg font-bold mt-1.5 text-purple-700">{fmt(stats.loan_outstanding)}</div>
               </div>
-              <div className="rounded-xl p-4 bg-blue-50 ring-1 ring-blue-200">
-                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Time Deposits Placed</div>
-                <div className="text-lg font-bold mt-1.5 text-blue-600">{fmt(stats.td_placed)}</div>
-                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.td_count} txns</div>
-              </div>
-              <div className="rounded-xl p-4 bg-blue-50 ring-1 ring-blue-200">
-                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">TD Active</div>
-                <div className="text-lg font-bold mt-1.5 text-blue-700">{fmt(stats.td_active)}</div>
-              </div>
               <div className="rounded-xl p-4 bg-[var(--bg-card)] ring-1 ring-[var(--border)]">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Categorized</div>
                 <div className="text-lg font-bold mt-1.5">{stats.categorized} / {stats.total_transactions}</div>
@@ -1090,7 +1081,11 @@ export default function Home() {
           <div className="p-6 lg:p-8">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-[var(--text)]">Transactions</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">{transactions.length} transactions shown</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                {transactions.length} transactions shown
+                {transactions.length >= 10000 && <span className="text-amber-600 ml-2">(limit reached — some transactions may not be shown)</span>}
+                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
+              </p>
             </div>
 
             {/* KPIs for currently displayed transactions */}

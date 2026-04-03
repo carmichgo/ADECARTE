@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       .from("transactions")
       .select("id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag, unit_price, quantity, strategy, settle_date")
       .order("date", { ascending: true })
-      .limit(10000);
+      .limit(50000);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
