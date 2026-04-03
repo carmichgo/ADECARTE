@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceDot, ReferenceArea,
-  ReferenceLine, Brush
+  ReferenceLine, Brush, PieChart, Pie
 } from "recharts";
 
 type Tab = "dashboard" | "upload" | "transactions" | "categorize" | "suspicious" | "analytics" | "settings";
@@ -89,7 +89,12 @@ export default function Home() {
   const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools">("overview");
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools" | "flow">("overview");
+  const [flowData, setFlowData] = useState<any>(null);
+  const [flowLoading, setFlowLoading] = useState(false);
+  const [aiFlowLoading, setAiFlowLoading] = useState(false);
+  const [aiFlowResult, setAiFlowResult] = useState<any>(null);
+  const [flowChainTxn, setFlowChainTxn] = useState<number | null>(null);
   // Suspicious tab state
   const [suspFilter, setSuspFilter] = useState({ flag: "all", category: "", search: "", counterparty: "" });
   const [suspSort, setSuspSort] = useState<{ field: string; desc: boolean }>({ field: "amount", desc: false });
@@ -506,6 +511,30 @@ export default function Home() {
       const data = await res.json();
       if (Array.isArray(data)) setRefSignatures(data);
     } catch {}
+  };
+
+  const loadFlowData = async () => {
+    setFlowLoading(true);
+    try {
+      const res = await fetch("/api/money-flow", { cache: "no-store" });
+      const data = await res.json();
+      if (!data.error) setFlowData(data);
+    } catch {}
+    setFlowLoading(false);
+  };
+
+  const runAiFlowMatch = async () => {
+    setAiFlowLoading(true);
+    try {
+      const res = await fetch("/api/ai/match-flows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: investigationContext }),
+      });
+      const data = await res.json();
+      setAiFlowResult(data);
+    } catch {}
+    setAiFlowLoading(false);
   };
 
   const uploadDocForTxn = async (file: File) => {
@@ -1587,6 +1616,7 @@ export default function Home() {
               {([
                 ["overview", "Overview"],
                 ["counterparties", "Counterparties"],
+                ["flow", "Money Flow"],
                 ["fraud", "Fraud Impact"],
                 ["tools", "AI Tools"],
               ] as [typeof analyticsTab, string][]).map(([key, label]) => (
@@ -1751,6 +1781,47 @@ export default function Home() {
               <div className="text-center text-[var(--text-muted)] py-12">Loading analytics...</div>
             ) : (
               <>
+                {/* Pie Chart: Transactions by Flag */}
+                {analyticsTab === "overview" && analyticsData.raw_transactions && (() => {
+                  const flagCounts: Record<string, { count: number; amount: number }> = {};
+                  const active = analyticsData.raw_transactions.filter((t: any) => t.flag !== "disqualified" && !excludedCategories.has(t.category || ""));
+                  active.forEach((t: any) => {
+                    const f = t.flag || "unflagged";
+                    if (!flagCounts[f]) flagCounts[f] = { count: 0, amount: 0 };
+                    flagCounts[f].count++;
+                    flagCounts[f].amount += Math.abs(t.amount || 0);
+                  });
+                  const flagColors: Record<string, string> = { normal: "#22c55e", review: "#eab308", suspicious: "#f97316", critical: "#ef4444", verified_fraud: "#dc2626", unflagged: "#a3a3a3" };
+                  const pieData = Object.entries(flagCounts).map(([flag, d]) => ({ name: flag, value: d.count, amount: d.amount, fill: flagColors[flag] || "#6366f1" }));
+                  if (pieData.length === 0) return null;
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
+                        <h3 className="text-sm font-semibold mb-3">Transactions by Flag (Count)</h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} paddingAngle={2} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={11}>
+                              {pieData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, color: "var(--tooltip-text)" }} formatter={(v: any, n: any) => [`${v} txns`, n]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
+                        <h3 className="text-sm font-semibold mb-3">Amount by Flag</h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie data={pieData} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} paddingAngle={2} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={11}>
+                              {pieData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 10, fontSize: 12, color: "var(--tooltip-text)" }} formatter={(v: any, n: any) => [fmt(Number(v)), n]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Cluster Detection — shown in Overview */}
                 {analyticsTab === "overview" && (
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-6">
@@ -2055,6 +2126,227 @@ export default function Home() {
                   )}
                 </div>
 
+                </>)}
+
+                {/* === Money Flow Tab === */}
+                {analyticsTab === "flow" && (<>
+                  <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-sm font-semibold">Cross-Bank Money Flow Tracing</h3>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">Trace where money went between banks and accounts</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={loadFlowData} disabled={flowLoading}
+                          className="px-4 py-2 bg-[var(--text)] text-[var(--bg)] rounded-xl text-sm font-semibold hover:opacity-80 disabled:opacity-50">
+                          {flowLoading ? <><span className="spinner mr-2"></span>Analyzing...</> : "Run Auto-Match"}
+                        </button>
+                        <button onClick={runAiFlowMatch} disabled={aiFlowLoading}
+                          className="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-100 disabled:opacity-50">
+                          {aiFlowLoading ? <><span className="spinner mr-1"></span>AI...</> : "AI Deep Match"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    {flowData?.stats && (
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+                        {([
+                          ["Matched", flowData.stats.total_matched, "text-emerald-600"],
+                          ["Matched Amount", fmt(flowData.stats.total_matched_amount), "text-emerald-600"],
+                          ["High Confidence", flowData.stats.high_confidence, "text-emerald-600"],
+                          ["Medium", flowData.stats.medium_confidence, "text-amber-600"],
+                          ["Low", flowData.stats.low_confidence, "text-orange-600"],
+                          ["Unmatched", flowData.stats.total_unmatched, "text-red-600"],
+                        ] as [string, any, string][]).map(([label, value, color], i) => (
+                          <div key={i} className="bg-[var(--bg-page)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-center">
+                            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{label}</div>
+                            <div className={`text-lg font-bold mt-0.5 ${color}`}>{String(value)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Flow Diagram (simplified as bar chart) */}
+                    {flowData?.flows && flowData.flows.length > 0 && (
+                      <div className="mb-5">
+                        <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-2">Money Flows Between Banks</h4>
+                        <div className="space-y-2">
+                          {flowData.flows.slice(0, 20).map((f: any, i: number) => {
+                            const maxAmount = Math.max(...flowData.flows.map((fl: any) => fl.amount));
+                            const pct = (f.amount / maxAmount) * 100;
+                            return (
+                              <div key={i} className="flex items-center gap-3">
+                                <span className="text-xs font-medium w-32 text-right truncate">{f.from}</span>
+                                <div className="flex-1 h-6 bg-[var(--bg-muted)] rounded-full overflow-hidden relative">
+                                  <div className="h-full bg-indigo-500 rounded-full transition-all flex items-center justify-end pr-2"
+                                    style={{ width: `${Math.max(pct, 5)}%` }}>
+                                    <span className="text-[10px] text-white font-semibold">{fmt(f.amount)}</span>
+                                  </div>
+                                </div>
+                                <span className="text-xs font-medium w-32 truncate">{f.to}</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">{f.count} txns</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Matched Transactions Table */}
+                  {flowData?.matches && flowData.matches.length > 0 && (
+                    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+                      <h3 className="text-sm font-semibold mb-3">Matched Transaction Pairs</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-[var(--text-muted)] uppercase border-b border-[var(--border)]">
+                            <th className="px-2 py-2 text-left">Confidence</th>
+                            <th className="px-2 py-2 text-left">Source Date</th>
+                            <th className="px-2 py-2 text-left">From Bank</th>
+                            <th className="px-2 py-2 text-left">From Account</th>
+                            <th className="px-2 py-2 text-right">Amount Out</th>
+                            <th className="px-2 py-2 text-center">→</th>
+                            <th className="px-2 py-2 text-left">Dest Date</th>
+                            <th className="px-2 py-2 text-left">To Bank</th>
+                            <th className="px-2 py-2 text-left">To Account</th>
+                            <th className="px-2 py-2 text-right">Amount In</th>
+                            <th className="px-2 py-2 text-right">Day Gap</th>
+                          </tr></thead>
+                          <tbody>
+                            {flowData.matches.map((m: any, i: number) => (
+                              <React.Fragment key={i}>
+                                <tr className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] cursor-pointer"
+                                  onClick={() => setFlowChainTxn(flowChainTxn === m.source.id ? null : m.source.id)}>
+                                  <td className="px-2 py-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                      m.match_type === "high" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                      m.match_type === "medium" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                      "bg-orange-50 text-orange-700 border border-orange-200"
+                                    }`}>{(m.confidence * 100).toFixed(0)}%</span>
+                                  </td>
+                                  <td className="px-2 py-2 whitespace-nowrap">{m.source.date}</td>
+                                  <td className="px-2 py-2 font-medium">{m.source.bank}</td>
+                                  <td className="px-2 py-2">{m.source.account}</td>
+                                  <td className="px-2 py-2 text-right text-red-600 font-medium tabular-nums">{fmt(m.source.amount)}</td>
+                                  <td className="px-2 py-2 text-center text-[var(--text-muted)]">→</td>
+                                  <td className="px-2 py-2 whitespace-nowrap">{m.dest.date}</td>
+                                  <td className="px-2 py-2 font-medium">{m.dest.bank}</td>
+                                  <td className="px-2 py-2">{m.dest.account}</td>
+                                  <td className="px-2 py-2 text-right text-emerald-600 font-medium tabular-nums">{fmt(m.dest.amount)}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums">{m.day_diff}d</td>
+                                </tr>
+                                {flowChainTxn === m.source.id && (
+                                  <tr className="bg-[var(--bg-page)]">
+                                    <td colSpan={11} className="px-4 py-3">
+                                      <div className="grid grid-cols-2 gap-4 text-xs">
+                                        <div>
+                                          <span className="font-semibold text-[var(--text-muted)]">Source:</span>
+                                          <p className="mt-1">{m.source.description || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Counterparty: {m.source.counterparty || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Flag: {m.source.flag || "-"}</p>
+                                        </div>
+                                        <div>
+                                          <span className="font-semibold text-[var(--text-muted)]">Destination:</span>
+                                          <p className="mt-1">{m.dest.description || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Counterparty: {m.dest.counterparty || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Flag: {m.dest.flag || "-"}</p>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Flow Results */}
+                  {aiFlowResult && (
+                    <div className="bg-white border border-amber-200 rounded-2xl shadow-sm p-5 mb-6">
+                      <h3 className="text-sm font-semibold mb-3 text-amber-700">AI Deep Match Results</h3>
+                      {aiFlowResult.chains && aiFlowResult.chains.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-2">Money Chains Detected</h4>
+                          {aiFlowResult.chains.map((c: any, i: number) => (
+                            <div key={i} className="p-3 bg-[var(--bg-page)] rounded-xl mb-2 text-xs">
+                              <div className="font-medium">{c.description}</div>
+                              <div className="text-[var(--text-muted)] mt-1">Path: {c.path?.join(" → ")} | Amount: {fmt(c.total_amount)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {aiFlowResult.matches && aiFlowResult.matches.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-2">AI Matched Pairs ({aiFlowResult.matches.length})</h4>
+                          <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                            {aiFlowResult.matches.map((m: any, i: number) => (
+                              <div key={i} className="flex items-center gap-2 text-xs p-2 bg-[var(--bg-muted)] rounded-lg">
+                                <span className="font-mono">#{m.source_id}</span>
+                                <span className="text-[var(--text-muted)]">→</span>
+                                <span className="font-mono">#{m.dest_id}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${m.confidence > 0.7 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{(m.confidence * 100).toFixed(0)}%</span>
+                                <span className="text-[var(--text-muted)] flex-1 truncate">{m.reasoning}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {aiFlowResult.splits && aiFlowResult.splits.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-2">Split Transactions</h4>
+                          {aiFlowResult.splits.map((s: any, i: number) => (
+                            <div key={i} className="p-2 bg-red-50 rounded-lg text-xs mb-1">
+                              <span className="font-mono">#{s.source_id}</span> split into {s.dest_ids?.map((d: any) => `#${d}`).join(", ")} — {s.reasoning}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Unmatched Transactions */}
+                  {flowData?.unmatched && flowData.unmatched.length > 0 && (
+                    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
+                      <h3 className="text-sm font-semibold mb-1">Unmatched Outflows</h3>
+                      <p className="text-xs text-[var(--text-muted)] mb-3">These withdrawals couldn't be auto-matched to deposits in another bank. Try "AI Deep Match" for better results.</p>
+                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-[var(--text-muted)] uppercase border-b border-[var(--border)] sticky top-0 bg-white">
+                            <th className="px-2 py-2 text-left">Date</th>
+                            <th className="px-2 py-2 text-left">Bank</th>
+                            <th className="px-2 py-2 text-left">Account</th>
+                            <th className="px-2 py-2 text-right">Amount</th>
+                            <th className="px-2 py-2 text-left">Description</th>
+                            <th className="px-2 py-2 text-left">Counterparty</th>
+                            <th className="px-2 py-2 text-left">Flag</th>
+                          </tr></thead>
+                          <tbody>
+                            {flowData.unmatched.map((t: any) => (
+                              <tr key={t.id} className="border-t border-[var(--border-subtle)]">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
+                                <td className="px-2 py-1.5">{t.bank}</td>
+                                <td className="px-2 py-1.5">{t.account}</td>
+                                <td className="px-2 py-1.5 text-right text-red-600 tabular-nums font-medium">{fmt(t.amount)}</td>
+                                <td className="px-2 py-1.5 max-w-[200px] truncate">{t.description || "-"}</td>
+                                <td className="px-2 py-1.5">{t.counterparty || "-"}</td>
+                                <td className="px-2 py-1.5"><FlagBadge flag={t.flag} /></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {!flowData && !flowLoading && (
+                    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-12 text-center">
+                      <p className="text-[var(--text-muted)]">Click "Run Auto-Match" to trace money flows between banks</p>
+                    </div>
+                  )}
                 </>)}
 
                 {/* === Fraud Tab === */}
