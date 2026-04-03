@@ -83,6 +83,7 @@ export default function Home() {
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkFlag, setBulkFlag] = useState("");
+  const [bulkDirection, setBulkDirection] = useState("");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [partyLoading, setPartyLoading] = useState(false);
   const [partyStatus, setPartyStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -627,6 +628,7 @@ export default function Home() {
     const updates: any = {};
     if (bulkCategory) updates.category = bulkCategory;
     if (bulkFlag) updates.flag = bulkFlag;
+    if (bulkDirection) updates.direction = bulkDirection;
     if (Object.keys(updates).length === 0) return;
     await fetch("/api/transactions/bulk-update", {
       method: "POST",
@@ -635,7 +637,7 @@ export default function Home() {
     });
     loadTransactions();
     loadStats();
-    setBulkCategory(""); setBulkFlag("");
+    setBulkCategory(""); setBulkFlag(""); setBulkDirection("");
   };
 
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
@@ -1184,6 +1186,12 @@ export default function Home() {
                 <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)]" value={bulkFlag} onChange={e => setBulkFlag(e.target.value)}>
                   <option value="">Set Flag...</option>
                   {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "VERIFIED FRAUD" : f === "disqualified" ? "DISQUALIFIED" : f}</option>)}
+                </select>
+                <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)]" value={bulkDirection} onChange={e => setBulkDirection(e.target.value)}>
+                  <option value="">Set Direction...</option>
+                  <option value="Contribution">Contribution</option>
+                  <option value="Withdraw">Withdraw</option>
+                  <option value="Internal Transfer">Internal Transfer</option>
                 </select>
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
