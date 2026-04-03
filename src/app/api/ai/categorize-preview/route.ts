@@ -101,11 +101,11 @@ For each transaction, respond with a JSON array where each element has:
 - "category": exact category name
 - "subcategory": optional label
 - "flag": "normal" | "review" | "suspicious" | "critical"
-- "direction": "Contribution" | "Withdraw" | "Internal Transfer"
+- "direction": KEEP the existing direction from the transaction data unless it is clearly wrong. Only change if the current direction is empty or incorrect based on the amount sign (positive=Contribution, negative=Withdraw). Valid values: "Contribution" | "Withdraw" | "Internal Transfer"
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
 
-Direction rules: Contribution=money IN, Withdraw=money OUT, Internal Transfer=between own accounts.
+IMPORTANT: Do NOT change direction unless it is empty or obviously wrong. If the transaction already has a direction, keep it.
 Be aggressive about flagging suspicious transactions.
 Respond with ONLY the JSON array.`;
 

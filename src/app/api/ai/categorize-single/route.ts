@@ -68,10 +68,12 @@ Respond with ONLY a JSON object:
 }
 
 IMPORTANT for direction:
-- "Contribution" = money coming IN (deposits, income, credits)
-- "Withdraw" = money going OUT (payments, withdrawals, debits)
-- "Internal Transfer" = money moving between the entity's OWN accounts (not real inflow/outflow)
-You MUST always set direction. If a transaction moves money between accounts owned by the same entity, it is "Internal Transfer".`;
+- KEEP the existing direction from the transaction data unless it is empty or clearly wrong.
+- Only change if: direction is empty, OR the current direction contradicts the amount sign (positive should be Contribution, negative should be Withdraw).
+- "Contribution" = money coming IN (positive amount)
+- "Withdraw" = money going OUT (negative amount)
+- "Internal Transfer" = money moving between the entity's OWN accounts
+Do NOT change direction unnecessarily.`;
 
   try {
     const response = await client.messages.create({
