@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase, fetchAll } from "@/lib/supabase";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 300;
@@ -23,41 +23,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Need at least 1 manually categorized transaction as example." }, { status: 400 });
   }
 
-  // Get uncategorized — try multiple approaches
-  const { data: uncatEmpty } = await db
-    .from("transactions")
-    .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
-    .eq("category", "")
-    .limit(100);
-
-  const { data: uncatNull } = await db
-    .from("transactions")
-    .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
-    .is("category", null)
-    .limit(100);
-
-  // Also get ones where categorized_by is empty (never been categorized)
-  const { data: uncatNever } = await db
-    .from("transactions")
-    .select("id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag")
-    .or("categorized_by.eq.,categorized_by.is.null")
-    .limit(100);
-
-  // Merge and deduplicate
-  const seenIds = new Set<number>();
-  const uncategorized: any[] = [];
-  for (const list of [uncatEmpty, uncatNull, uncatNever]) {
-    for (const t of list || []) {
-      if (!seenIds.has(t.id)) {
-        seenIds.add(t.id);
-        uncategorized.push(t);
-      }
-    }
-  }
+  // Get ALL transactions, filter uncategorized client-side (same logic as stats)
+  const cols = "id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag, categorized_by";
+  const allTxns = await fetchAll("transactions", cols);
+  const uncategorized = allTxns.filter(t => !t.category || t.category === "");
 
   if (uncategorized.length === 0) {
     return NextResponse.json({ message: "All transactions are already categorized", preview: [] });
   }
+
+  // Process max 100 at a time to avoid timeout
+  const toProcess = uncategorized.slice(0, 100);
 
   // Get categories
   const { data: categories } = await db.from("categories").select("name, description, is_suspicious");
@@ -76,8 +52,8 @@ export async function POST(req: NextRequest) {
   const batchSize = 50;
   const allResults: any[] = [];
 
-  for (let i = 0; i < uncategorized.length; i += batchSize) {
-    const batch = uncategorized.slice(i, i + batchSize);
+  for (let i = 0; i < toProcess.length; i += batchSize) {
+    const batch = toProcess.slice(i, i + batchSize);
     const txnList = batch.map(t => ({
       id: t.id, description: t.description, amount: t.amount,
       counterparty: t.counterparty, reference: t.reference, date: t.date,
@@ -145,7 +121,7 @@ Respond with ONLY the JSON array.`;
   }
 
   return NextResponse.json({
-    message: `AI generated ${allResults.length} categorization proposals`,
+    message: `AI generated ${allResults.length} proposals (${uncategorized.length} total uncategorized, processing ${toProcess.length} per run)`,
     preview: allResults,
   });
 }

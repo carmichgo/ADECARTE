@@ -62,14 +62,21 @@ For each transaction, extract:
 
 ## RULES
 - Look at the description, account, symbol, security, and any available fields to identify the counterparty
-- IMPORTANT: If description is "-", empty, or generic, use the OTHER fields (symbol, security, account) to identify what this transaction is. For example if symbol is "AAPL" and security is "Apple Inc", this is a stock trade — the counterparty should be the broker/exchange or "Stock Purchase: AAPL"
-- For stock/securities trades: identify as "[Buy/Sell] [Symbol] - [Security Name]" e.g. "Buy AAPL - Apple Inc" as the counterparty
-- Normalize names: "JOHN SMITH WIRE", "J. Smith Transfer", "SMITH JOHN" should all become "John Smith"
-- For bank transfers, try to identify the bank or account holder
-- For trading: the counterparty might be the exchange or broker
-- If the description mentions a company, extract the company name
+- IMPORTANT: Parse structured descriptions carefully. Common patterns:
+  * "BOOK TRANSFER CREDIT B/O: [COMPANY NAME] [CITY] [STATE] REF: [REFERENCE]" → counterparty = the company after "B/O:"
+  * "WIRE TRANSFER FROM [NAME]" or "WIRE TRANSFER TO [NAME]" → counterparty = the name
+  * "Transfer of Funds From [ACCOUNT] To [ACCOUNT]" → use account numbers to identify
+  * "FED WIRE [DIRECTION] [NAME/COMPANY]" → counterparty = the name/company
+  * "CHECK [NUMBER] [NAME]" → counterparty = the name
+  * "ACH [CREDIT/DEBIT] [COMPANY]" → counterparty = the company
+- When description has "B/O:" (by order of), the entity after it is the counterparty
+- When description has "REF:" with a person's name, note it but the counterparty is usually the entity before REF
+- If description is "-", empty, or generic, use the OTHER fields (symbol, security, account)
+- For stock/securities trades: identify as "[Buy/Sell] [Symbol] - [Security Name]"
+- Normalize names: "JOHN SMITH WIRE", "J. Smith Transfer", "SMITH JOHN" → "John Smith"
+- For bank transfers, extract the bank or account holder name
 - If you truly cannot determine the party, use "Unknown" but try your best
-- Group similar parties under one canonical name (e.g., "Wells Fargo Bank", "WELLS FARGO", "WF BANK" → "Wells Fargo")
+- Group similar parties under one canonical name
 ${exampleText}
 ## TRANSACTIONS TO ANALYZE
 ${JSON.stringify(txnList, null, 2)}
