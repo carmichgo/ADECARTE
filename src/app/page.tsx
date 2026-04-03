@@ -28,6 +28,7 @@ interface Stats {
   verified_fraud_amount: number; verified_fraud_count: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
   loan_disbursed: number; loan_repaid: number; loan_outstanding: number; loan_count: number;
+  td_placed: number; td_matured: number; td_active: number; td_count: number;
 }
 
 const fmt = (n: number | null) => {
@@ -280,7 +281,7 @@ export default function Home() {
   const isExcludedFromFlow = (t: any) => {
     const dir = (t.direction || "").toLowerCase();
     const cat = (t.category || "").toLowerCase();
-    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit/);
+    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit|loc principal|loc interest/) || cat.match(/time deposit/);
   };
 
   // Reset brush when categories change
@@ -930,6 +931,15 @@ export default function Home() {
               <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Outstanding</div>
                 <div className="text-lg font-bold mt-1.5 text-purple-700">{fmt(stats.loan_outstanding)}</div>
+              </div>
+              <div className="rounded-xl p-4 bg-blue-50 ring-1 ring-blue-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Time Deposits Placed</div>
+                <div className="text-lg font-bold mt-1.5 text-blue-600">{fmt(stats.td_placed)}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.td_count} txns</div>
+              </div>
+              <div className="rounded-xl p-4 bg-blue-50 ring-1 ring-blue-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">TD Active</div>
+                <div className="text-lg font-bold mt-1.5 text-blue-700">{fmt(stats.td_active)}</div>
               </div>
               <div className="rounded-xl p-4 bg-[var(--bg-card)] ring-1 ring-[var(--border)]">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Categorized</div>

@@ -18,7 +18,7 @@ export async function GET() {
   const isExcluded = (t: any) => {
     const dir = (t.direction || "").toLowerCase();
     const cat = (t.category || "").toLowerCase();
-    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit/);
+    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit|loc principal|loc interest/) || cat.match(/time deposit/);
   };
   const flowTxns = active.filter(t => !isExcluded(t)); // Only real contributions/withdrawals
 
@@ -33,10 +33,17 @@ export async function GET() {
   const disqualifiedCount = all.filter(t => t.flag === "disqualified").length;
 
   // Line of Credit stats (by category)
-  const locTxns = active.filter(t => (t.category || "").toLowerCase().match(/line of credit/));
+  const locTxns = active.filter(t => (t.category || "").toLowerCase().match(/line of credit|loc principal|loc interest/));
   const loanDisbursed = locTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const loanRepaid = locTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const loanOutstanding = loanDisbursed - loanRepaid;
+
+  // Time Deposit stats
+  const tdTxns = active.filter(t => (t.category || "").toLowerCase().match(/time deposit/));
+  const tdPlaced = tdTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const tdMatured = tdTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const tdActive = tdPlaced - tdMatured;
+  const tdCount = tdTxns.length;
   const loanCount = locTxns.length;
 
   const suspiciousItems = active.filter(t =>
@@ -116,5 +123,9 @@ export async function GET() {
     loan_repaid: loanRepaid,
     loan_outstanding: loanOutstanding,
     loan_count: loanCount,
+    td_placed: tdPlaced,
+    td_matured: tdMatured,
+    td_active: tdActive,
+    td_count: tdCount,
   });
 }

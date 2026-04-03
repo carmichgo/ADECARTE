@@ -159,11 +159,10 @@ export async function GET(req: NextRequest) {
 function excludeFromFlow(t: any): boolean {
   const dir = (t.direction || "").toLowerCase();
   const cat = (t.category || "").toLowerCase();
-  // Internal transfers
   if (dir.match(/internal|transfer between/)) return true;
   if (cat.match(/transfer.*between|internal.*transfer/)) return true;
-  // Line of credit transactions (informational only)
-  if (cat.match(/line of credit/)) return true;
+  if (cat.match(/line of credit|loc principal|loc interest/)) return true;
+  if (cat.match(/time deposit/)) return true;
   return false;
 }
 
