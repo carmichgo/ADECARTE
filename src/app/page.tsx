@@ -27,7 +27,7 @@ interface Stats {
   categorized: number; uncategorized: number; suspicious_amount: number; suspicious_count: number;
   verified_fraud_amount: number; verified_fraud_count: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
-  loan_disbursed: number; loan_repaid: number; loan_outstanding: number; loan_count: number;
+  loan_disbursed: number; loan_repaid: number; loan_outstanding: number; loan_interest: number; loan_count: number;
   td_placed: number; td_matured: number; td_active: number; td_count: number;
 }
 
@@ -922,15 +922,19 @@ export default function Home() {
               <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Drawn</div>
                 <div className="text-lg font-bold mt-1.5 text-purple-600">{fmt(stats.loan_disbursed)}</div>
-                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.loan_count} txns</div>
               </div>
               <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Repaid</div>
                 <div className="text-lg font-bold mt-1.5 text-purple-600">{fmt(stats.loan_repaid)}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-1">principal only</div>
               </div>
               <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Outstanding</div>
                 <div className="text-lg font-bold mt-1.5 text-purple-700">{fmt(stats.loan_outstanding)}</div>
+              </div>
+              <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">LOC Interest Cost</div>
+                <div className="text-lg font-bold mt-1.5 text-purple-600">{fmt(stats.loan_interest || 0)}</div>
               </div>
               <div className="rounded-xl p-4 bg-[var(--bg-card)] ring-1 ring-[var(--border)]">
                 <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Categorized</div>
