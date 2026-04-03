@@ -683,6 +683,8 @@ export default function Home() {
   };
 
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
+  const [beneficiaryLoading, setBeneficiaryLoading] = useState(false);
+  const [beneficiaryStatus, setBeneficiaryStatus] = useState("");
 
   const bulkAiCategorize = async () => {
     if (selectedIds.size === 0) return;
@@ -702,6 +704,27 @@ export default function Home() {
     setBulkAiLoading(false);
     loadTransactions();
     loadStats();
+  };
+
+  const fillBeneficiaries = async () => {
+    setBeneficiaryLoading(true);
+    setBeneficiaryStatus("AI is identifying beneficiaries...");
+    try {
+      const res = await fetch("/api/ai/extract-beneficiaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (data.error) setBeneficiaryStatus("Error: " + data.error);
+      else {
+        setBeneficiaryStatus(data.message);
+        loadTransactions();
+      }
+    } catch (err: any) { setBeneficiaryStatus("Error: " + err.message); }
+    setBeneficiaryLoading(false);
   };
 
   const bulkDelete = async () => {
@@ -1190,6 +1213,15 @@ export default function Home() {
                 </div>
               );
             })()}
+
+            {/* AI Fill Beneficiaries */}
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={fillBeneficiaries} disabled={beneficiaryLoading}
+                className="px-4 py-2 bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 disabled:opacity-50 rounded-xl text-sm font-medium">
+                {beneficiaryLoading ? <><span className="spinner mr-2"></span>Running...</> : "AI Fill Beneficiaries"}
+              </button>
+              {beneficiaryStatus && <span className="text-xs text-[var(--text-muted)]">{beneficiaryStatus}</span>}
+            </div>
 
             {/* Filters */}
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4 space-y-3">
@@ -1766,7 +1798,65 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
             )}
+
+              {/* By Beneficiary — Victim Impact */}
+              {(() => {
+                const byBeneficiary: Record<string, { name: string; deposits: number; deposit_amount: number; withdrawals: number; withdrawal_amount: number }> = {};
+                active.forEach(t => {
+                  const ben = t.beneficiary || "";
+                  if (!ben) return;
+                  if (!byBeneficiary[ben]) byBeneficiary[ben] = { name: ben, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0 };
+                  if ((t.amount || 0) > 0) { byBeneficiary[ben].deposits++; byBeneficiary[ben].deposit_amount += Math.abs(t.amount); }
+                  else if ((t.amount || 0) < 0) { byBeneficiary[ben].withdrawals++; byBeneficiary[ben].withdrawal_amount += Math.abs(t.amount); }
+                });
+                const beneficiaryList = Object.values(byBeneficiary).sort((a, b) => b.withdrawal_amount - a.withdrawal_amount);
+                if (beneficiaryList.length === 0) return null;
+                return (
+                  <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mt-4">
+                    <h3 className="text-sm font-semibold mb-1">Victim Impact by Beneficiary</h3>
+                    <p className="text-xs text-[var(--text-muted)] mb-3">Shows how much was deposited for each beneficiary vs how much was diverted</p>
+                    <div className="max-h-[350px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="text-[var(--text-muted)] text-xs uppercase sticky top-0 bg-white">
+                          <th className="text-left py-2 pr-2">Beneficiary</th>
+                          <th className="text-right py-2 px-2">Deposits In</th>
+                          <th className="text-right py-2 px-2"># In</th>
+                          <th className="text-right py-2 px-2">Diverted Out</th>
+                          <th className="text-right py-2 px-2"># Out</th>
+                          <th className="text-right py-2 pl-2">Net Impact</th>
+                        </tr></thead>
+                        <tbody>
+                          {beneficiaryList.map(b => {
+                            const net = b.deposit_amount - b.withdrawal_amount;
+                            return (
+                              <tr key={b.name} className="border-t border-[var(--border-subtle)]">
+                                <td className="py-2 pr-2 font-medium">{b.name}</td>
+                                <td className="py-2 px-2 text-right text-emerald-600 tabular-nums">{fmt(b.deposit_amount)}</td>
+                                <td className="py-2 px-2 text-right text-[var(--text-muted)] tabular-nums">{b.deposits}</td>
+                                <td className="py-2 px-2 text-right text-red-600 tabular-nums">{fmt(b.withdrawal_amount)}</td>
+                                <td className="py-2 px-2 text-right text-[var(--text-muted)] tabular-nums">{b.withdrawals}</td>
+                                <td className={`py-2 pl-2 text-right font-semibold tabular-nums ${net >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmt(net)}</td>
+                              </tr>
+                            );
+                          })}
+                          <tr className="border-t-2 border-[var(--border)] font-bold">
+                            <td className="py-2">TOTAL</td>
+                            <td className="py-2 px-2 text-right text-emerald-600 tabular-nums">{fmt(beneficiaryList.reduce((s, b) => s + b.deposit_amount, 0))}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{beneficiaryList.reduce((s, b) => s + b.deposits, 0)}</td>
+                            <td className="py-2 px-2 text-right text-red-600 tabular-nums">{fmt(beneficiaryList.reduce((s, b) => s + b.withdrawal_amount, 0))}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{beneficiaryList.reduce((s, b) => s + b.withdrawals, 0)}</td>
+                            <td className={`py-2 pl-2 text-right font-bold tabular-nums ${beneficiaryList.reduce((s, b) => s + b.deposit_amount - b.withdrawal_amount, 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                              {fmt(beneficiaryList.reduce((s, b) => s + b.deposit_amount - b.withdrawal_amount, 0))}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
           </div>
           );
         })()}
