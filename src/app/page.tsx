@@ -1088,27 +1088,16 @@ export default function Home() {
               </p>
             </div>
 
-            {/* KPIs for currently displayed transactions */}
-            {transactions.length > 0 && (() => {
-              const active = transactions.filter(t => t.flag !== "disqualified");
-              const flowTxns = active.filter(t => !isExcludedFromFlow(t));
-              const deposits = flowTxns.filter(t => t.amount > 0);
-              const withdrawals = flowTxns.filter(t => t.amount < 0);
-              const locTxns = active.filter(t => (t.category || "").toLowerCase().match(/line of credit/));
-              const suspicious = active.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
-              const uncategorized = transactions.filter(t => !t.category);
-              const totalDeposits = deposits.reduce((s, t) => s + t.amount, 0);
-              const totalWithdrawals = withdrawals.reduce((s, t) => s + Math.abs(t.amount), 0);
-              const net = totalDeposits - totalWithdrawals;
-              return (
+            {/* KPIs — use dashboard stats for consistency */}
+            {stats && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
                   {([
-                    ["Deposits", `${fmt(totalDeposits)}`, `${deposits.length} txns`, "text-emerald-600"],
-                    ["Withdrawals", `${fmt(totalWithdrawals)}`, `${withdrawals.length} txns`, "text-red-600"],
-                    ["Net", `${fmt(net)}`, "", net >= 0 ? "text-emerald-600" : "text-red-600"],
-                    ["Suspicious", `${suspicious.length}`, "", "text-orange-600"],
-                    ["Verified Fraud", `${transactions.filter(t => t.flag === "verified_fraud").length}`, "", "text-red-600"],
-                    ["Uncategorized", `${uncategorized.length}`, "", "text-[var(--text-muted)]"],
+                    ["Deposits", fmt(stats.total_deposits), `${stats.deposit_count} txns`, "text-emerald-600"],
+                    ["Withdrawals", fmt(stats.total_withdrawals), `${stats.withdrawal_count} txns`, "text-red-600"],
+                    ["Net", fmt(stats.total_amount), "", stats.total_amount >= 0 ? "text-emerald-600" : "text-red-600"],
+                    ["Suspicious", `${stats.suspicious_count}`, "", "text-orange-600"],
+                    ["Verified Fraud", `${stats.verified_fraud_count}`, "", "text-red-600"],
+                    ["Uncategorized", `${stats.uncategorized}`, "", "text-[var(--text-muted)]"],
                   ] as [string, string, string, string][]).map(([label, value, sub, color], i) => (
                     <div key={i} className="bg-white border border-[var(--border)] rounded-xl px-4 py-3">
                       <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
@@ -1117,8 +1106,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-              );
-            })()}
+            )}
 
             <div className="flex flex-wrap gap-2 mb-4 items-center">
               <input placeholder="Search..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-60"
