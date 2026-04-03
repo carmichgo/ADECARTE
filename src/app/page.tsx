@@ -19,6 +19,7 @@ interface Transaction {
   symbol: string; security: string; strategy: string; direction: string;
   bank: string; category: string; subcategory: string; flag: string; notes: string;
   categorized_by: string; raw_data: any; documents: any[]; fraudulent_signature: boolean | null;
+  beneficiary: string;
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
 interface Stats {
@@ -57,7 +58,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "" });
+  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "", beneficiary: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
@@ -553,7 +554,7 @@ export default function Home() {
   // ── Edit ───
   const openEdit = async (t: Transaction) => {
     setEditTxn(t);
-    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "", amount: String(t.amount ?? "") });
+    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "", amount: String(t.amount ?? ""), beneficiary: t.beneficiary || "" });
     setEditDocs([]);
     setDocUploadStatus("");
     setSigCompareResult(null);
@@ -1306,7 +1307,7 @@ export default function Home() {
                       ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
-                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Counterparty"],
+                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Counterparty"], ["beneficiary", "Beneficiary"],
                       ["category", "Category"], ["flag", "Flag"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
@@ -1355,6 +1356,7 @@ export default function Home() {
                       <td className="px-3 py-2 text-[var(--text-muted)]">{t.bank || "-"}</td>
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.counterparty || "-"}</td>
+                      <td className="px-3 py-2 text-[var(--text-muted)]">{t.beneficiary || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2 text-center">{t.fraudulent_signature === true ? <span className="text-red-600 text-xs font-bold" title="Fraudulent signature detected">FRAUD</span> : t.fraudulent_signature === false ? <span className="text-emerald-600 text-xs" title="Signature verified">OK</span> : <span className="text-[var(--text-muted)] text-xs">-</span>}</td>
@@ -3135,6 +3137,12 @@ export default function Home() {
                 <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   placeholder="Who sent or received the money"
                   value={editForm.counterparty} onChange={e => setEditForm(p => ({ ...p, counterparty: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Beneficiary</label>
+                <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
+                  placeholder="Person/entity that ultimately benefits (e.g. client name from REF)"
+                  value={editForm.beneficiary} onChange={e => setEditForm(p => ({ ...p, beneficiary: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Bank / Custodian</label>

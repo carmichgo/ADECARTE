@@ -84,9 +84,13 @@ ${JSON.stringify(txnList, null, 2)}
 ## RESPONSE FORMAT
 Respond with ONLY a JSON array where each element has:
 - "id": transaction id
-- "counterparty": extracted party name (cleaned up, proper case)
+- "counterparty": the firm/company/bank that sent or received the money (cleaned up, proper case)
+- "beneficiary": the ultimate person or entity that benefits from the transaction (e.g. client name from REF, B/O, FBO fields). Leave empty string "" if same as counterparty or not identifiable.
 - "direction_label": "incoming" or "outgoing"
 - "confidence": 0.0-1.0
+
+Example: "BOOK TRANSFER CREDIT B/O: ACME LAW FIRM REF: JOHN DOE"
+→ counterparty = "Acme Law Firm", beneficiary = "John Doe"
 
 Respond with ONLY the JSON array, no other text.`;
 
@@ -107,6 +111,7 @@ Respond with ONLY the JSON array, no other text.`;
       for (const r of results) {
         const updates: Record<string, string> = {};
         if (r.counterparty) updates.counterparty = r.counterparty;
+        if (r.beneficiary) updates.beneficiary = r.beneficiary;
         if (r.direction_label && !batch.find(t => t.id === r.id)?.direction) {
           updates.direction = r.direction_label;
         }
