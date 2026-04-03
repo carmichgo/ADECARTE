@@ -294,7 +294,7 @@ export default function Home() {
     const lines = ourAccounts.map(a =>
       `- Account "${a.account}" at ${a.bank} — Role: ${a.role}${a.notes ? ` — ${a.notes}` : ""}`
     ).join("\n");
-    return `\n## OUR ACCOUNTS (owned by us)\n${lines}\n\nIMPORTANT RULES:\n- A transfer is "Internal Transfer" ONLY if BOTH the source AND destination accounts are in the list above\n- If one side is an external account (not in our list), it is NOT internal — it's a real Contribution or Withdraw\n- Accounts linked to a Line of Credit (LOC) are special: money FROM an LOC account into our investment account is a deposit from the credit line (category "Line of Credit"), NOT an internal transfer\n- When you see "Transfer of Funds From X To Y", check if both X and Y match our accounts above\n`;
+    return `\n## OUR ACCOUNTS (owned by us)\n${lines}\n\nIMPORTANT RULES FOR CATEGORIZATION:\n- A transfer is "Internal Transfer" ONLY if BOTH the source AND destination accounts are in the list above\n- If one side is an external account (not in our list), it is NOT internal — it's a real Contribution or Withdraw\n- Accounts with Role "LOC" are Line of Credit accounts. Apply these rules:\n  * Money FROM LOC account TO one of our other accounts = category "Line of Credit" (internal LOC disbursement, excluded from deposits/withdrawals)\n  * Money FROM LOC account TO an EXTERNAL account (not in our list) = category "LOC External Transfer" with direction "Withdraw" — this IS a real outflow that counts as a withdrawal\n  * Money going TO an LOC account = "LOC Principal Repayment" or "LOC Interest Payment"\n- When you see "Transfer of Funds From X To Y", check if both X and Y match our accounts above to determine the correct category\n`;
   })();
 
   const saveOurAccounts = (accts: typeof ourAccounts) => {
@@ -611,19 +611,33 @@ export default function Home() {
 
   const saveEdit = async () => {
     if (!editTxn) return;
-    const res = await fetch(`/api/transactions/${editTxn.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...editForm, amount: editForm.amount !== "" ? parseFloat(editForm.amount) : undefined }),
-    });
-    const result = await res.json();
-    if (result.error) {
-      alert("Save failed: " + result.error);
-      return;
+    try {
+      const payload: any = { ...editForm };
+      // Convert amount to number, remove if unchanged
+      if (payload.amount !== "" && payload.amount != null) {
+        payload.amount = parseFloat(payload.amount);
+        if (isNaN(payload.amount)) delete payload.amount;
+      } else {
+        delete payload.amount;
+      }
+      const res = await fetch(`/api/transactions/${editTxn.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      let result;
+      try { result = JSON.parse(text); } catch { result = { error: `Server error (${res.status}): ${text.slice(0, 200)}` }; }
+      if (result.error) {
+        alert("Save failed: " + result.error);
+        return;
+      }
+      setEditTxn(null);
+      loadTransactions();
+      loadStats();
+    } catch (err: any) {
+      alert("Save failed: " + err.message);
     }
-    setEditTxn(null);
-    loadTransactions();
-    loadStats();
   };
 
   // ── Bulk ───
