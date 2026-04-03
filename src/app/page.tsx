@@ -27,6 +27,7 @@ interface Stats {
   categorized: number; uncategorized: number; suspicious_amount: number; suspicious_count: number;
   verified_fraud_amount: number; verified_fraud_count: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
+  loan_disbursed: number; loan_repaid: number; loan_outstanding: number; loan_count: number;
 }
 
 const fmt = (n: number | null) => {
@@ -293,7 +294,7 @@ export default function Home() {
       if (!byDate[d]) byDate[d] = { date: d, raw_date: d, inflow: 0, outflow: 0, net: 0, count: 0, withdraw_count: 0, withdraw_total: 0 };
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      if (dir.match(/internal|transfer between/)) { byDate[d].count++; continue; }
+      if (dir.match(/internal|transfer between|^loan/)) { byDate[d].count++; continue; }
       if (amount > 0) byDate[d].inflow += amount;
       else if (amount < 0) { byDate[d].outflow += Math.abs(amount); byDate[d].withdraw_count++; byDate[d].withdraw_total += Math.abs(amount); }
       byDate[d].net += amount;
@@ -323,7 +324,7 @@ export default function Home() {
       if (!partyCounts[party]) partyCounts[party] = { party, deposits: 0, deposit_amount: 0, withdrawals: 0, withdrawal_amount: 0, internal: 0, internal_amount: 0 };
       const amount = t.amount || 0;
       const dir = (t.direction || "").toLowerCase();
-      if (dir.match(/internal|transfer between/)) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
+      if (dir.match(/internal|transfer between|^loan/)) { partyCounts[party].internal++; partyCounts[party].internal_amount += Math.abs(amount); }
       else if (amount > 0) { partyCounts[party].deposits++; partyCounts[party].deposit_amount += Math.abs(amount); }
       else if (amount < 0) { partyCounts[party].withdrawals++; partyCounts[party].withdrawal_amount += Math.abs(amount); }
     }
@@ -348,7 +349,7 @@ export default function Home() {
       for (const t of analyticsData.raw_transactions) {
         if ((t.amount || 0) >= 0) continue;
         const dir = (t.direction || "").toLowerCase();
-        if (dir.match(/internal|transfer between/)) continue;
+        if (dir.match(/internal|transfer between|^loan/)) continue;
         if (clusterFlagFilter === "suspicious+critical") {
           if (t.flag !== "suspicious" && t.flag !== "critical") continue;
         } else if (t.flag !== clusterFlagFilter) continue;
@@ -880,19 +881,15 @@ export default function Home() {
               <h2 className="text-xl font-semibold text-[var(--text)]">Dashboard</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Investigation overview and key metrics</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 mb-4">
               {([
-                ["Total Txns", stats.total_transactions, ""],
-                ["Net Amount", fmt(stats.total_amount), ""],
-                ["Deposits", fmt(stats.total_deposits), "green"],
-                ["Withdrawals", fmt(stats.total_withdrawals), "red"],
-                ["Categorized", stats.categorized, ""],
-                ["Uncategorized", stats.uncategorized, ""],
+                ["Total Txns", stats.total_transactions, "", ""],
+                ["Net Amount", fmt(stats.total_amount), "", ""],
+                ["Deposits", fmt(stats.total_deposits), `${stats.deposit_count} txns`, "green"],
+                ["Withdrawals", fmt(stats.total_withdrawals), `${stats.withdrawal_count} txns`, "red"],
                 ["Suspicious", fmt(stats.suspicious_amount), `${stats.suspicious_count || 0} txns`, "alert"],
-                ["Verified Fraud", `${fmt(stats.verified_fraud_amount)} (${stats.verified_fraud_count})`, "fraud"],
-              ] as [string, any, string][]).map(([label, value, color], i) => (
+              ] as [string, any, string, string][]).map(([label, value, sub, color], i) => (
                 <div key={i} className={`rounded-xl p-4 transition-all ${
-                  color === "fraud" ? "bg-red-50 ring-1 ring-red-500/30" :
                   color === "alert" ? "bg-orange-500/5 ring-1 ring-orange-500/20" :
                   color === "green" ? "bg-emerald-500/5 ring-1 ring-emerald-500/15" :
                   color === "red" ? "bg-red-50 ring-1 ring-red-500/15" :
@@ -900,13 +897,39 @@ export default function Home() {
                 }`}>
                   <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
                   <div className={`text-lg font-bold mt-1.5 tracking-tight ${
-                    color === "green" ? "text-emerald-400" :
-                    color === "red" || color === "alert" || color === "fraud" ? "text-red-600" : "text-[var(--text)]"
+                    color === "green" ? "text-emerald-600" :
+                    color === "red" || color === "alert" ? "text-red-600" : "text-[var(--text)]"
                   }`}>{String(value)}</div>
-                  {label === "Deposits" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.deposit_count} txns</div>}
-                  {label === "Withdrawals" && <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.withdrawal_count} txns</div>}
+                  {sub && <div className="text-[10px] text-[var(--text-muted)] mt-1">{sub}</div>}
                 </div>
               ))}
+            </div>
+
+            {/* Second row: Fraud + Loan */}
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
+              <div className="rounded-xl p-4 bg-red-50 ring-1 ring-red-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Verified Fraud</div>
+                <div className="text-lg font-bold mt-1.5 text-red-600">{fmt(stats.verified_fraud_amount)}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.verified_fraud_count} txns</div>
+              </div>
+              <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Loan Disbursed</div>
+                <div className="text-lg font-bold mt-1.5 text-purple-600">{fmt(stats.loan_disbursed)}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.loan_count} loan txns</div>
+              </div>
+              <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Loan Repaid</div>
+                <div className="text-lg font-bold mt-1.5 text-purple-600">{fmt(stats.loan_repaid)}</div>
+              </div>
+              <div className="rounded-xl p-4 bg-purple-50 ring-1 ring-purple-200">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Loan Outstanding</div>
+                <div className="text-lg font-bold mt-1.5 text-purple-700">{fmt(stats.loan_outstanding)}</div>
+              </div>
+              <div className="rounded-xl p-4 bg-[var(--bg-card)] ring-1 ring-[var(--border)]">
+                <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Categorized</div>
+                <div className="text-lg font-bold mt-1.5">{stats.categorized} / {stats.total_transactions}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-1">{stats.uncategorized} remaining</div>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
@@ -1057,8 +1080,11 @@ export default function Home() {
             {/* KPIs for currently displayed transactions */}
             {transactions.length > 0 && (() => {
               const active = transactions.filter(t => t.flag !== "disqualified");
-              const deposits = active.filter(t => t.amount > 0);
-              const withdrawals = active.filter(t => t.amount < 0);
+              const isLoanDir = (d: string) => (d || "").toLowerCase().startsWith("loan");
+              const flowTxns = active.filter(t => !isLoanDir(t.direction) && !(t.direction || "").toLowerCase().match(/internal|transfer between/));
+              const deposits = flowTxns.filter(t => t.amount > 0);
+              const withdrawals = flowTxns.filter(t => t.amount < 0);
+              const loanTxns = active.filter(t => isLoanDir(t.direction));
               const suspicious = active.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
               const uncategorized = transactions.filter(t => !t.category);
               const totalDeposits = deposits.reduce((s, t) => s + t.amount, 0);
@@ -1160,11 +1186,13 @@ export default function Home() {
                     <tr><td colSpan={17} className="text-center text-[var(--text-muted)] py-8">No transactions found. Upload a CSV to get started.</td></tr>
                   ) : transactions.map(t => {
                     const dirLower = (t.direction || "").toLowerCase();
-                    const dirColor = dirLower.match(/^(internal|transfer between|internal transfer)/)
-                      ? "text-amber-600 font-semibold"
-                      : dirLower.match(/^(buy|in|incoming|deposit|credit|contribut|receive)/)
-                        ? "text-emerald-600 font-semibold"
-                        : dirLower ? "text-red-600 font-semibold" : "";
+                    const dirColor = dirLower.match(/^loan/)
+                      ? "text-purple-600 font-semibold"
+                      : dirLower.match(/internal|transfer between/)
+                        ? "text-amber-600 font-semibold"
+                        : dirLower.match(/^(buy|in|incoming|deposit|credit|contribut|receive)/)
+                          ? "text-emerald-600 font-semibold"
+                          : dirLower ? "text-red-600 font-semibold" : "";
                     const expanded = expandedRows.has(t.id);
                     return (
                     <tr key={t.id} className={`hover:bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] align-top ${t.flag === "disqualified" ? "opacity-40" : ""}`}>
@@ -1337,7 +1365,7 @@ export default function Home() {
                                   </td>
                                   <td className="px-3 py-1">
                                     <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs" value={p.direction} onChange={e => updateProp("direction", e.target.value)}>
-                                      <option value="Contribution">Contribution</option><option value="Withdraw">Withdraw</option><option value="Internal Transfer">Internal Transfer</option>
+                                      <option value="Contribution">Contribution</option><option value="Withdraw">Withdraw</option><option value="Internal Transfer">Internal Transfer</option><option value="Loan Disbursement">Loan Disbursement</option><option value="Loan Repayment">Loan Repayment</option>
                                     </select>
                                   </td>
                                   <td className="px-3 py-1">

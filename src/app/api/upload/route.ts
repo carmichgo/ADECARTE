@@ -63,12 +63,16 @@ export async function POST(req: NextRequest) {
   const rows = parsed.data.map((row: any) => {
     const rawAmount = parseAmount(row[fieldMap.amount] || "");
     const direction = (row[fieldMap.direction] || "").trim().toLowerCase();
+    const desc = (row[fieldMap.description] || "").trim().toLowerCase();
+    // Detect loan transactions
+    const isLoanDisbursement = direction.match(/^(loan disburs|disburs)/) || desc.match(/loan disburs/i);
+    const isLoanRepayment = direction.match(/^(loan repay|loan pay|repay)/) || desc.match(/loan repay|loan pay/i);
     // Make amount negative for withdrawals, positive for contributions
-    const isWithdraw = direction.match(/^(withdraw|withdrawal|sell|out|outgoing|debit|payment|disbursement)/) && !direction.match(/internal|transfer between/);
-    const isContribution = direction.match(/^(contribut|buy|in|incoming|deposit|credit|receive)/);
-    const amount = isWithdraw ? -Math.abs(rawAmount) : isContribution ? Math.abs(rawAmount) : rawAmount;
-    // Normalize direction to canonical values
-    const normalizedDirection = direction.match(/internal|transfer between/) ? "Internal Transfer" : isWithdraw ? "Withdraw" : isContribution ? "Contribution" : (row[fieldMap.direction] || "").trim();
+    const isWithdraw = !isLoanDisbursement && !isLoanRepayment && direction.match(/^(withdraw|withdrawal|sell|out|outgoing|debit|payment|disbursement)/) && !direction.match(/internal|transfer between/);
+    const isContribution = !isLoanDisbursement && !isLoanRepayment && direction.match(/^(contribut|buy|in|incoming|deposit|credit|receive)/);
+    const amount = isLoanRepayment ? -Math.abs(rawAmount) : isLoanDisbursement ? Math.abs(rawAmount) : isWithdraw ? -Math.abs(rawAmount) : isContribution ? Math.abs(rawAmount) : rawAmount;
+    // Normalize direction
+    const normalizedDirection = isLoanDisbursement ? "Loan Disbursement" : isLoanRepayment ? "Loan Repayment" : direction.match(/internal|transfer between/) ? "Internal Transfer" : isWithdraw ? "Withdraw" : isContribution ? "Contribution" : (row[fieldMap.direction] || "").trim();
 
     return {
     upload_batch: batchId,

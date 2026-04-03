@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name, bank").limit(10000);
+  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name, bank, direction").limit(10000);
 
   if (error) {
     console.error("Stats query error:", error);
@@ -15,15 +15,26 @@ export async function GET() {
 
   // Exclude disqualified from all stats
   const active = all.filter(t => t.flag !== "disqualified");
+  const isLoan = (t: any) => (t.direction || "").toLowerCase().startsWith("loan");
+  const isExcluded = (t: any) => isLoan(t) || (t.direction || "").toLowerCase().match(/internal|transfer between/);
+  const flowTxns = active.filter(t => !isExcluded(t)); // Only real contributions/withdrawals
+
   const total = active.length;
-  const totalAmount = active.reduce((s, t) => s + (t.amount || 0), 0);
-  const totalDeposits = active.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0);
-  const totalWithdrawals = active.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const depositCount = active.filter(t => (t.amount || 0) > 0).length;
-  const withdrawalCount = active.filter(t => (t.amount || 0) < 0).length;
+  const totalAmount = flowTxns.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalDeposits = flowTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0);
+  const totalWithdrawals = flowTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const depositCount = flowTxns.filter(t => (t.amount || 0) > 0).length;
+  const withdrawalCount = flowTxns.filter(t => (t.amount || 0) < 0).length;
   const categorized = active.filter(t => t.category && t.category !== "").length;
   const uncategorized = total - categorized;
   const disqualifiedCount = all.filter(t => t.flag === "disqualified").length;
+
+  // Loan stats
+  const loanTxns = active.filter(t => isLoan(t));
+  const loanDisbursed = loanTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const loanRepaid = loanTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const loanOutstanding = loanDisbursed - loanRepaid;
+  const loanCount = loanTxns.length;
 
   const suspiciousItems = active.filter(t =>
     t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
@@ -98,5 +109,9 @@ export async function GET() {
     by_category: byCategory,
     by_flag: byFlag,
     by_account: byAccount,
+    loan_disbursed: loanDisbursed,
+    loan_repaid: loanRepaid,
+    loan_outstanding: loanOutstanding,
+    loan_count: loanCount,
   });
 }
