@@ -1088,25 +1088,40 @@ export default function Home() {
               </p>
             </div>
 
-            {/* KPIs — use dashboard stats for consistency */}
-            {stats && (
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
-                  {([
-                    ["Deposits", fmt(stats.total_deposits), `${stats.deposit_count} txns`, "text-emerald-600"],
-                    ["Withdrawals", fmt(stats.total_withdrawals), `${stats.withdrawal_count} txns`, "text-red-600"],
-                    ["Net", fmt(stats.total_amount), "", stats.total_amount >= 0 ? "text-emerald-600" : "text-red-600"],
-                    ["Suspicious", `${stats.suspicious_count}`, "", "text-orange-600"],
-                    ["Verified Fraud", `${stats.verified_fraud_count}`, "", "text-red-600"],
-                    ["Uncategorized", `${stats.uncategorized}`, "", "text-[var(--text-muted)]"],
-                  ] as [string, string, string, string][]).map(([label, value, sub, color], i) => (
-                    <div key={i} className="bg-white border border-[var(--border)] rounded-xl px-4 py-3">
-                      <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
-                      <div className={`text-lg font-bold mt-0.5 ${color}`}>{value}</div>
-                      {sub && <div className="text-[10px] text-[var(--text-muted)]">{sub}</div>}
-                    </div>
-                  ))}
+            {/* KPIs — computed from visible transactions */}
+            {(() => {
+              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank;
+              const active = transactions.filter(t => t.flag !== "disqualified");
+              const flowTxns = active.filter(t => !isExcludedFromFlow(t));
+              const deps = flowTxns.filter(t => t.amount > 0);
+              const withs = flowTxns.filter(t => t.amount < 0);
+              const totalDep = deps.reduce((s, t) => s + t.amount, 0);
+              const totalWith = withs.reduce((s, t) => s + Math.abs(t.amount), 0);
+              const net = totalDep - totalWith;
+              const susp = active.filter(t => t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud");
+              const uncat = active.filter(t => !t.category);
+              return (
+                <div className="mb-5">
+                  {hasFilters && <p className="text-[10px] text-amber-600 mb-2 font-medium">Showing KPIs for filtered results only</p>}
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    {([
+                      ["Deposits", fmt(totalDep), `${deps.length} txns`, "text-emerald-600"],
+                      ["Withdrawals", fmt(totalWith), `${withs.length} txns`, "text-red-600"],
+                      ["Net", fmt(net), "", net >= 0 ? "text-emerald-600" : "text-red-600"],
+                      ["Suspicious", `${susp.length}`, "", "text-orange-600"],
+                      ["Verified Fraud", `${active.filter(t => t.flag === "verified_fraud").length}`, "", "text-red-600"],
+                      ["Uncategorized", `${uncat.length}`, "", "text-[var(--text-muted)]"],
+                    ] as [string, string, string, string][]).map(([label, value, sub, color], i) => (
+                      <div key={i} className="bg-white border border-[var(--border)] rounded-xl px-4 py-3">
+                        <div className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{label}</div>
+                        <div className={`text-lg font-bold mt-0.5 ${color}`}>{value}</div>
+                        {sub && <div className="text-[10px] text-[var(--text-muted)]">{sub}</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-            )}
+              );
+            })()}
 
             <div className="flex flex-wrap gap-2 mb-4 items-center">
               <input placeholder="Search..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-60"
