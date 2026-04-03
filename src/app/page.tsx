@@ -1510,7 +1510,6 @@ export default function Home() {
                             <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Description</th>
                             <th className="px-3 py-2 text-right text-[var(--text-muted)] font-medium">Amount</th>
                             <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Category</th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Direction</th>
                             <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Flag</th>
                             <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Reasoning</th>
                           </tr></thead>
@@ -1529,11 +1528,6 @@ export default function Home() {
                                   <td className="px-3 py-1">
                                     <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs w-full" value={p.category} onChange={e => updateProp("category", e.target.value)}>
                                       {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                    </select>
-                                  </td>
-                                  <td className="px-3 py-1">
-                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs" value={p.direction} onChange={e => updateProp("direction", e.target.value)}>
-                                      <option value="Contribution">Contribution</option><option value="Withdraw">Withdraw</option><option value="Internal Transfer">Internal Transfer</option>
                                     </select>
                                   </td>
                                   <td className="px-3 py-1">

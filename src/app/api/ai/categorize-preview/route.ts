@@ -78,11 +78,15 @@ For each transaction, respond with a JSON array where each element has:
 - "category": exact category name
 - "subcategory": optional label
 - "flag": "normal" | "review" | "suspicious" | "critical"
-- "direction": KEEP the existing direction from the transaction data unless it is clearly wrong. Only change if the current direction is empty or incorrect based on the amount sign (positive=Contribution, negative=Withdraw). Valid values: "Contribution" | "Withdraw" | "Internal Transfer"
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
 
-IMPORTANT: Do NOT change direction unless it is empty or obviously wrong. If the transaction already has a direction, keep it.
+IMPORTANT CATEGORY RULES:
+- "Line of Credit" = ONLY for transactions where the account IS the LOC account itself (e.g. M61750002, Loan Adela)
+- "LOC Funded Deposit" = when money arrives INTO one of our non-LOC accounts FROM the LOC (e.g. CREDIT MEMORANDUM, transfers from 0002). Set counterparty to "Line of Credit (account#)"
+- "LOC External Transfer" = when money goes FROM the LOC account to an EXTERNAL account (not ours)
+
+Do NOT include "direction" in the response — direction will not be changed.
 Be aggressive about flagging suspicious transactions.
 Respond with ONLY the JSON array.`;
 

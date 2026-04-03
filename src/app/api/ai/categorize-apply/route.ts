@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       notes: `[AI confidence: ${p.confidence ?? "?"}] ${p.reasoning || ""}`,
       categorized_by: "ai",
     };
-    if (p.direction) update.direction = p.direction;
+    if (p.counterparty) update.counterparty = p.counterparty;
     await db.from("transactions").update(update).eq("id", p.id);
     applied++;
   }
