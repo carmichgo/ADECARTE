@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       if (p.get("date_from")) query = query.gte("date", p.get("date_from")!);
       if (p.get("date_to")) query = query.lte("date", p.get("date_to")!);
       if (p.get("bank")) query = query.eq("bank", p.get("bank")!);
+      if (p.get("account")) query = query.eq("account", p.get("account")!);
       if (p.get("batch")) query = query.eq("upload_batch", p.get("batch")!);
       query = query.order(orderField, { ascending: !desc });
       return query;

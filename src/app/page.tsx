@@ -50,12 +50,13 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [categories, setCategories] = useState<Category[]>([]);
   const [allBanks, setAllBanks] = useState<string[]>([]);
+  const [allAccounts, setAllAccounts] = useState<string[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "" });
-  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "" });
+  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -158,6 +159,7 @@ export default function Home() {
     if (filters.min) q.set("min_amount", filters.min);
     if (filters.max) q.set("max_amount", filters.max);
     if (filters.bank) q.set("bank", filters.bank);
+    if (filters.account) q.set("account", filters.account);
     q.set("order", "id");
     q.set("desc", "1");
     const res = await fetch("/api/transactions?" + q.toString(), { cache: "no-store" });
@@ -211,6 +213,7 @@ export default function Home() {
   useEffect(() => {
     loadCategories(); loadStats();
     fetch("/api/banks", { cache: "no-store" }).then(r => r.json()).then(d => { if (Array.isArray(d)) setAllBanks(d); }).catch(() => {});
+    fetch("/api/accounts", { cache: "no-store" }).then(r => r.json()).then(d => { if (Array.isArray(d)) setAllAccounts(d); }).catch(() => {});
   }, [loadCategories, loadStats]);
   useEffect(() => { if (tab === "transactions" || tab === "suspicious") loadTransactions(); }, [tab, loadTransactions]);
   useEffect(() => { if (tab === "dashboard") loadStats(); }, [tab, loadStats]);
@@ -1110,13 +1113,13 @@ export default function Home() {
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {transactions.length} transactions shown
                 {transactions.length >= 10000 && <span className="text-amber-600 ml-2">(limit reached — some transactions may not be shown)</span>}
-                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
+                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
               </p>
             </div>
 
             {/* KPIs — computed from visible transactions */}
             {(() => {
-              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank;
+              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account;
               const active = transactions.filter(t => t.flag !== "disqualified");
               const flowTxns = active.filter(t => !isExcludedFromFlow(t));
               const deps = flowTxns.filter(t => t.amount > 0);
@@ -1168,12 +1171,17 @@ export default function Home() {
                 <option value="">All Banks</option>
                 {allBanks.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
+              <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
+                value={filters.account} onChange={e => setFilters(p => ({ ...p, account: e.target.value }))}>
+                <option value="">All Accounts</option>
+                {allAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
               <input type="number" placeholder="Min $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
               <input type="number" placeholder="Max $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
               <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Filter</button>
-              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Clear</button>
+              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Clear</button>
             </div>
             {selectedIds.size > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">
