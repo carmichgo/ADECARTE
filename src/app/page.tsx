@@ -77,6 +77,12 @@ export default function Home() {
     }
     return [];
   });
+  const [flaggedAccounts, setFlaggedAccounts] = useState<Array<{ account: string; name: string; reason: string }>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_flagged_accounts") || "[]"); } catch { return []; }
+    }
+    return [];
+  });
   const [uploadStatus, setUploadStatus] = useState<{ type: string; msg: string } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -294,12 +300,20 @@ export default function Home() {
     const lines = ourAccounts.map(a =>
       `- Account "${a.account}" at ${a.bank} — Role: ${a.role}${a.notes ? ` — ${a.notes}` : ""}`
     ).join("\n");
-    return `\n## OUR ACCOUNTS (owned by us)\n${lines}\n\nIMPORTANT RULES FOR CATEGORIZATION:\n- A transfer is "Internal Transfer" ONLY if BOTH the source AND destination accounts are in the list above\n- If one side is an external account (not in our list), it is NOT internal — it's a real Contribution or Withdraw\n- Accounts with Role "LOC" are Line of Credit accounts. Apply these rules:\n  * Money FROM LOC account TO one of our other accounts = category "Line of Credit" (internal LOC disbursement, excluded from deposits/withdrawals)\n  * Money FROM LOC account TO an EXTERNAL account (not in our list) = category "LOC External Transfer" with direction "Withdraw" — this IS a real outflow that counts as a withdrawal\n  * Money going TO an LOC account = "LOC Principal Repayment" or "LOC Interest Payment"\n- When you see "Transfer of Funds From X To Y", check if both X and Y match our accounts above to determine the correct category\n`;
+    const flaggedLines = flaggedAccounts.length > 0
+      ? `\n## KNOWN FRAUDULENT EXTERNAL ACCOUNTS\n${flaggedAccounts.map(a => `- Account "${a.account}"${a.name ? ` (${a.name})` : ""} — ${a.reason}`).join("\n")}\n\nIMPORTANT: Any transaction sending money TO these accounts should be flagged as "verified_fraud" or "critical" and categorized as "SUSPICIOUS - Unauthorized Transfer" or "FRAUD - Unauthorized Transfer". These are confirmed fraudulent destinations.\n`
+      : "";
+    return `\n## OUR ACCOUNTS (owned by us)\n${lines}\n\nIMPORTANT RULES FOR CATEGORIZATION:\n- A transfer is "Internal Transfer" ONLY if BOTH the source AND destination accounts are in the list above\n- If one side is an external account (not in our list), it is NOT internal — it's a real Contribution or Withdraw\n- Accounts with Role "LOC" are Line of Credit accounts. Apply these rules:\n  * Money FROM LOC account TO one of our other accounts = category "Line of Credit" (internal LOC disbursement, excluded from deposits/withdrawals)\n  * Money FROM LOC account TO an EXTERNAL account (not in our list) = category "LOC External Transfer" with direction "Withdraw" — this IS a real outflow that counts as a withdrawal\n  * Money going TO an LOC account = "LOC Principal Repayment" or "LOC Interest Payment"\n- When you see "Transfer of Funds From X To Y", check if both X and Y match our accounts above to determine the correct category\n${flaggedLines}`;
   })();
 
   const saveOurAccounts = (accts: typeof ourAccounts) => {
     setOurAccounts(accts);
     if (typeof window !== "undefined") localStorage.setItem("adecarte_our_accounts", JSON.stringify(accts));
+  };
+
+  const saveFlaggedAccounts = (accts: typeof flaggedAccounts) => {
+    setFlaggedAccounts(accts);
+    if (typeof window !== "undefined") localStorage.setItem("adecarte_flagged_accounts", JSON.stringify(accts));
   };
 
   const isExcludedFromFlow = (t: any) => {
@@ -2731,6 +2745,67 @@ export default function Home() {
                 </button>
               </div>
               <p className="text-[10px] text-[var(--text-muted)] mt-3">Saved in browser. All AI features use this to determine internal vs external transfers.</p>
+            </div>
+
+            {/* Flagged External Accounts */}
+            <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-6 mb-6">
+              <h3 className="text-sm font-semibold mb-1 text-red-600">Flagged External Accounts</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-4">Identified fraudulent or suspicious external accounts where money was sent. AI will automatically flag any transaction going to these accounts.</p>
+
+              {flaggedAccounts.length > 0 && (
+                <div className="border border-red-200 rounded-xl overflow-hidden mb-4">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-red-50">
+                      <th className="px-3 py-2 text-left text-xs text-red-600 font-medium">Account / Identifier</th>
+                      <th className="px-3 py-2 text-left text-xs text-red-600 font-medium">Name / Entity</th>
+                      <th className="px-3 py-2 text-left text-xs text-red-600 font-medium">Reason</th>
+                      <th className="px-3 py-2 w-16"></th>
+                    </tr></thead>
+                    <tbody>
+                      {flaggedAccounts.map((a, i) => (
+                        <tr key={i} className="border-t border-red-100">
+                          <td className="px-3 py-2 font-mono font-medium text-red-600">{a.account}</td>
+                          <td className="px-3 py-2">{a.name || "-"}</td>
+                          <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{a.reason}</td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => saveFlaggedAccounts(flaggedAccounts.filter((_, j) => j !== i))}
+                              className="text-xs text-red-600 hover:underline">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 items-end">
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Account # / Identifier</label>
+                  <input id="new-flag-acct" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-40" placeholder="e.g. 123456789" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Name / Entity</label>
+                  <input id="new-flag-name" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-48" placeholder="e.g. John Doe, Unknown LLC" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Reason</label>
+                  <input id="new-flag-reason" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-64" placeholder="e.g. Unauthorized wire recipient, suspected front company" />
+                </div>
+                <button onClick={() => {
+                  const account = (document.getElementById("new-flag-acct") as HTMLInputElement)?.value.trim();
+                  const name = (document.getElementById("new-flag-name") as HTMLInputElement)?.value.trim();
+                  const reason = (document.getElementById("new-flag-reason") as HTMLInputElement)?.value.trim();
+                  if (!account) return;
+                  saveFlaggedAccounts([...flaggedAccounts, { account, name, reason: reason || "Flagged as suspicious" }]);
+                  (document.getElementById("new-flag-acct") as HTMLInputElement).value = "";
+                  (document.getElementById("new-flag-name") as HTMLInputElement).value = "";
+                  (document.getElementById("new-flag-reason") as HTMLInputElement).value = "";
+                }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-500">
+                  Flag Account
+                </button>
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-3">Saved in browser. AI will auto-flag transactions to these accounts as fraudulent.</p>
             </div>
 
             {/* Reference Signatures */}
