@@ -83,10 +83,14 @@ For each transaction, respond with a JSON array where each element has:
 
 IMPORTANT CATEGORY RULES FOR LINE OF CREDIT:
 - "Line of Credit" = ONLY for transactions on the "Loan Adela" account (the loan ledger). NOT for M61750002.
-- "LOC Funded Deposit" = when the transaction's OWN ACCOUNT (the "acct" field) is one of our non-LOC accounts AND the description mentions a loan/LOC advance (e.g. "CREDIT MEMORANDUM REF: ADVANCE ON LOAN", "LOAN DISBURSEMENT"). The money landed in our account from the LOC. Set counterparty to "Line of Credit".
-- "LOC External Transfer" = when the transaction is ON the LOC account (M61750002) and goes to an external account, OR when a CREDIT MEMORANDUM is on M61750002 going outward.
-- Transactions ON M61750002 going to our accounts = "Internal Transfer". Going to external = "LOC External Transfer".
-- KEY: Check the "acct" field to know WHICH account the transaction is on. If acct is one of our investment accounts and description says loan/advance, it's LOC Funded Deposit.
+- "LOC Funded Deposit" = ONLY when the transaction's OWN ACCOUNT ("acct" field) is one of our INVESTMENT accounts (NOT M61750002, NOT Loan Adela) AND the description mentions loan/advance. The money landed in our investment account from the LOC.
+- Any transaction ON account M61750002 (LOC operating account):
+  * CREDIT MEMORANDUM / ADVANCE ON LOAN on M61750002 = "Line of Credit" (money drawn from credit line into the LOC operating account)
+  * Transfer FROM M61750002 TO one of our investment accounts = "Internal Transfer"
+  * Transfer FROM M61750002 TO external account = "LOC External Transfer"
+  * NEVER use "LOC Funded Deposit" for transactions on M61750002
+- "Line of Credit" = for transactions on "Loan Adela" OR for ADVANCE ON LOAN / CREDIT MEMORANDUM on M61750002
+- KEY: Check "acct" field. If acct = M61750002 → it's the LOC side. If acct = any investment account → it's the receiving side.
 
 Do NOT include "direction" in the response — direction will not be changed.
 Be aggressive about flagging suspicious transactions.
