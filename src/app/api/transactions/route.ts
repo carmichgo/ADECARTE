@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       if (p.get("uncategorized")) query = query.or("category.eq.,category.is.null,categorized_by.eq.,categorized_by.is.null");
       if (p.get("search")) {
         const s = `%${p.get("search")}%`;
-        query = query.or(`description.ilike.${s},counterparty.ilike.${s},notes.ilike.${s},reference.ilike.${s}`);
+        query = query.or(`description.ilike.${s},counterparty.ilike.${s},reference.ilike.${s},beneficiary.ilike.${s}`);
       }
       if (p.get("min_amount")) query = query.gte("amount", parseFloat(p.get("min_amount")!));
       if (p.get("max_amount")) query = query.lte("amount", parseFloat(p.get("max_amount")!));
