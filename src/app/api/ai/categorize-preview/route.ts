@@ -49,8 +49,9 @@ export async function POST(req: NextRequest) {
   ).join("\n");
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 50;
+  const batchSize = 25;
   const allResults: any[] = [];
+  const errors: string[] = [];
 
   for (let i = 0; i < toProcess.length; i += batchSize) {
     const batch = toProcess.slice(i, i + batchSize);
@@ -66,11 +67,11 @@ ${context ? `\n## INVESTIGATION BACKGROUND\n${context}\n` : ""}${instructions ? 
 ## AVAILABLE CATEGORIES
 ${categoryList}
 
-## EXAMPLES
-${JSON.stringify(examples, null, 2)}
+## EXAMPLES (${examples.length} manually categorized)
+${JSON.stringify(examples.slice(0, 10).map(e => ({ desc: (e.description || "").slice(0, 60), amount: e.amount, cat: e.category, dir: e.direction, flag: e.flag })), null, 2)}
 
 ## TRANSACTIONS TO CATEGORIZE
-${JSON.stringify(txnList, null, 2)}
+${JSON.stringify(txnList.map(t => ({ id: t.id, desc: (t.description || "").slice(0, 80), amount: t.amount, cp: t.counterparty, dir: t.direction, acct: t.account, sym: t.symbol })), null, 2)}
 
 For each transaction, respond with a JSON array where each element has:
 - "id": transaction id
@@ -88,13 +89,25 @@ Respond with ONLY the JSON array.`;
     try {
       const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
 
       let text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
       if (text.startsWith("```")) text = text.split("\n").slice(1).join("\n").replace(/```\s*$/, "");
-      const results = JSON.parse(text);
+
+      let results;
+      try {
+        results = JSON.parse(text);
+      } catch (parseErr) {
+        errors.push(`Batch ${i}: JSON parse failed — response starts with: ${text.slice(0, 100)}`);
+        continue;
+      }
+
+      if (!Array.isArray(results)) {
+        errors.push(`Batch ${i}: AI returned non-array: ${JSON.stringify(results).slice(0, 100)}`);
+        continue;
+      }
 
       // Attach original transaction data for preview
       for (const r of results) {
@@ -114,14 +127,14 @@ Respond with ONLY the JSON array.`;
           });
         }
       }
-    } catch (err) {
-      console.error("Preview batch error:", err);
+    } catch (err: any) {
+      errors.push(`Batch ${i}: ${err.message || String(err)}`);
       continue;
     }
   }
 
   return NextResponse.json({
-    message: `AI generated ${allResults.length} proposals (${uncategorized.length} total uncategorized, processing ${toProcess.length} per run)`,
+    message: `AI generated ${allResults.length} proposals (${uncategorized.length} total uncategorized, processing ${toProcess.length} per run)${errors.length > 0 ? `. Errors: ${errors.join("; ")}` : ""}`,
     preview: allResults,
   });
 }
