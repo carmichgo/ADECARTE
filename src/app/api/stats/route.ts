@@ -27,11 +27,15 @@ export async function GET() {
   const uncategorized = total - categorized;
   const disqualifiedCount = all.filter(t => t.flag === "disqualified").length;
 
-  // Line of Credit stats (by category)
-  const locTxns = active.filter(t => (t.category || "").toLowerCase().match(/line of credit|loc principal|loc interest/));
-  const loanDisbursed = locTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const loanRepaid = locTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  // Line of Credit stats
+  // LOC Drawn = only "Line of Credit" category (disbursements from credit line)
+  const locDrawnTxns = active.filter(t => (t.category || "") === "Line of Credit");
+  const loanDisbursed = locDrawnTxns.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+  // LOC Repaid = only "LOC Principal Repayment" and "LOC Interest Payment" categories
+  const locRepaidTxns = active.filter(t => (t.category || "").match(/^LOC Principal Repayment$|^LOC Interest Payment$/));
+  const loanRepaid = locRepaidTxns.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
   const loanOutstanding = loanDisbursed - loanRepaid;
+  const locTxns = [...locDrawnTxns, ...locRepaidTxns];
 
   // Time Deposit stats
   const tdTxns = active.filter(t => (t.category || "").toLowerCase().match(/time deposit/));
