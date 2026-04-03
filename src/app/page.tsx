@@ -70,6 +70,12 @@ export default function Home() {
     if (typeof window !== "undefined") return localStorage.getItem("adecarte_investigation_context") || "";
     return "";
   });
+  const [ourAccounts, setOurAccounts] = useState<Array<{ account: string; bank: string; role: string; notes: string }>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_our_accounts") || "[]"); } catch { return []; }
+    }
+    return [];
+  });
   const [uploadStatus, setUploadStatus] = useState<{ type: string; msg: string } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -278,6 +284,20 @@ export default function Home() {
 
   // ── Cluster detection (computed client-side) ───
   // Helper: should this transaction be excluded from flow calculations?
+  // Build account context for AI prompts
+  const accountContextForAI = (() => {
+    if (ourAccounts.length === 0) return "";
+    const lines = ourAccounts.map(a =>
+      `- Account "${a.account}" at ${a.bank} — Role: ${a.role}${a.notes ? ` — ${a.notes}` : ""}`
+    ).join("\n");
+    return `\n## OUR ACCOUNTS (owned by us)\n${lines}\n\nIMPORTANT RULES:\n- A transfer is "Internal Transfer" ONLY if BOTH the source AND destination accounts are in the list above\n- If one side is an external account (not in our list), it is NOT internal — it's a real Contribution or Withdraw\n- Accounts linked to a Line of Credit (LOC) are special: money FROM an LOC account into our investment account is a deposit from the credit line (category "Line of Credit"), NOT an internal transfer\n- When you see "Transfer of Funds From X To Y", check if both X and Y match our accounts above\n`;
+  })();
+
+  const saveOurAccounts = (accts: typeof ourAccounts) => {
+    setOurAccounts(accts);
+    if (typeof window !== "undefined") localStorage.setItem("adecarte_our_accounts", JSON.stringify(accts));
+  };
+
   const isExcludedFromFlow = (t: any) => {
     const dir = (t.direction || "").toLowerCase();
     const cat = (t.category || "").toLowerCase();
@@ -416,7 +436,7 @@ export default function Home() {
           transactionCounts: analyticsData?.transaction_counts || [],
           rawTransactions: analyticsData?.raw_transactions || [],
           instructions: aiInstructions,
-          context: investigationContext,
+          context: investigationContext + accountContextForAI,
         }),
       });
       const text = await res.text();
@@ -630,7 +650,7 @@ export default function Home() {
         await fetch("/api/ai/categorize-single", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext }),
+          body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext + accountContextForAI }),
         });
         done++;
       } catch {}
@@ -661,7 +681,7 @@ export default function Home() {
       const res = await fetch("/api/ai/categorize-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext }),
+        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
       });
       const text = await res.text();
       let data;
@@ -736,7 +756,7 @@ export default function Home() {
       const res = await fetch("/api/ai/categorize-single", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext }),
+        body: JSON.stringify({ id, instructions: aiInstructions, context: investigationContext + accountContextForAI }),
       });
       const text = await res.text();
       let data;
@@ -2599,7 +2619,88 @@ export default function Home() {
           <div className="p-6 lg:p-8 max-w-[900px]">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-[var(--text)]">Settings</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1">Reference signatures and configuration</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Account registry, signatures, and configuration</p>
+            </div>
+
+            {/* Our Accounts Registry */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-6 mb-6">
+              <h3 className="text-sm font-semibold mb-1">Our Accounts</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-4">Define all accounts you own. The AI uses this to determine if transfers are internal (between your accounts) or external. Mark special accounts like LOC-linked ones.</p>
+
+              {ourAccounts.length > 0 && (
+                <div className="border border-[var(--border)] rounded-xl overflow-hidden mb-4">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-[var(--bg-muted)]">
+                      <th className="px-3 py-2 text-left text-xs text-[var(--text-muted)] font-medium">Account #</th>
+                      <th className="px-3 py-2 text-left text-xs text-[var(--text-muted)] font-medium">Bank</th>
+                      <th className="px-3 py-2 text-left text-xs text-[var(--text-muted)] font-medium">Role</th>
+                      <th className="px-3 py-2 text-left text-xs text-[var(--text-muted)] font-medium">Notes</th>
+                      <th className="px-3 py-2 w-16"></th>
+                    </tr></thead>
+                    <tbody>
+                      {ourAccounts.map((a, i) => (
+                        <tr key={i} className="border-t border-[var(--border-subtle)]">
+                          <td className="px-3 py-2 font-mono font-medium">{a.account}</td>
+                          <td className="px-3 py-2">{a.bank}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              a.role === "LOC" ? "bg-purple-50 text-purple-600 border border-purple-200" :
+                              a.role === "Investment" ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                              a.role === "Operating" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
+                              "bg-[var(--bg-muted)] text-[var(--text-muted)] border border-[var(--border)]"
+                            }`}>{a.role}</span>
+                          </td>
+                          <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{a.notes || "-"}</td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => saveOurAccounts(ourAccounts.filter((_, j) => j !== i))}
+                              className="text-xs text-red-600 hover:underline">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 items-end">
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Account # / ID</label>
+                  <input id="new-acct-num" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-40" placeholder="e.g. M61750002" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Bank</label>
+                  <input id="new-acct-bank" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-40" placeholder="e.g. JP Morgan" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Role</label>
+                  <select id="new-acct-role" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm">
+                    <option value="Investment">Investment</option>
+                    <option value="Operating">Operating</option>
+                    <option value="LOC">Line of Credit</option>
+                    <option value="Custody">Custody</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Notes</label>
+                  <input id="new-acct-notes" className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-48" placeholder="e.g. Linked to LOC, main trading..." />
+                </div>
+                <button onClick={() => {
+                  const num = (document.getElementById("new-acct-num") as HTMLInputElement)?.value.trim();
+                  const bank = (document.getElementById("new-acct-bank") as HTMLInputElement)?.value.trim();
+                  const role = (document.getElementById("new-acct-role") as HTMLSelectElement)?.value;
+                  const notes = (document.getElementById("new-acct-notes") as HTMLInputElement)?.value.trim();
+                  if (!num || !bank) return;
+                  saveOurAccounts([...ourAccounts, { account: num, bank, role, notes }]);
+                  (document.getElementById("new-acct-num") as HTMLInputElement).value = "";
+                  (document.getElementById("new-acct-bank") as HTMLInputElement).value = "";
+                  (document.getElementById("new-acct-notes") as HTMLInputElement).value = "";
+                }}
+                  className="px-4 py-2 bg-[var(--text)] text-[var(--bg)] rounded-xl text-sm font-semibold hover:opacity-80">
+                  Add Account
+                </button>
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-3">Saved in browser. All AI features use this to determine internal vs external transfers.</p>
             </div>
 
             {/* Reference Signatures */}
