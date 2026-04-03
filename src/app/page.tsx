@@ -24,7 +24,7 @@ interface Category { id: number; name: string; description: string; is_suspiciou
 interface Stats {
   total_transactions: number; total_amount: number; total_deposits: number;
   total_withdrawals: number; deposit_count: number; withdrawal_count: number;
-  categorized: number; uncategorized: number; suspicious_amount: number;
+  categorized: number; uncategorized: number; suspicious_amount: number; suspicious_count: number;
   verified_fraud_amount: number; verified_fraud_count: number;
   suspicious_breakdown: any[]; by_category: any[]; by_flag: any[]; by_account: any[];
 }
@@ -854,7 +854,7 @@ export default function Home() {
                 ["Withdrawals", fmt(stats.total_withdrawals), "red"],
                 ["Categorized", stats.categorized, ""],
                 ["Uncategorized", stats.uncategorized, ""],
-                ["Suspicious", fmt(stats.suspicious_amount), "alert"],
+                ["Suspicious", fmt(stats.suspicious_amount), `${stats.suspicious_count || 0} txns`, "alert"],
                 ["Verified Fraud", `${fmt(stats.verified_fraud_amount)} (${stats.verified_fraud_count})`, "fraud"],
               ] as [string, any, string][]).map(([label, value, color], i) => (
                 <div key={i} className={`rounded-xl p-4 transition-all ${

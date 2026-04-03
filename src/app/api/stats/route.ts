@@ -28,7 +28,8 @@ export async function GET() {
   const suspiciousItems = active.filter(t =>
     t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))
   );
-  const suspiciousAmount = suspiciousItems.reduce((s, t) => s + (t.amount || 0), 0);
+  const suspiciousAmount = suspiciousItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+  const suspiciousCount = suspiciousItems.length;
 
   const verifiedFraudItems = active.filter(t => t.flag === "verified_fraud");
   const verifiedFraudAmount = verifiedFraudItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
@@ -90,6 +91,7 @@ export async function GET() {
     categorized,
     uncategorized,
     suspicious_amount: suspiciousAmount,
+    suspicious_count: suspiciousCount,
     verified_fraud_amount: verifiedFraudAmount,
     verified_fraud_count: verifiedFraudCount,
     suspicious_breakdown: suspiciousBreakdown,
