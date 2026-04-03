@@ -15,8 +15,11 @@ export async function GET() {
 
   // Exclude disqualified from all stats
   const active = all.filter(t => t.flag !== "disqualified");
-  const isLoan = (t: any) => (t.direction || "").toLowerCase().startsWith("loan");
-  const isExcluded = (t: any) => isLoan(t) || (t.direction || "").toLowerCase().match(/internal|transfer between/);
+  const isExcluded = (t: any) => {
+    const dir = (t.direction || "").toLowerCase();
+    const cat = (t.category || "").toLowerCase();
+    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit/);
+  };
   const flowTxns = active.filter(t => !isExcluded(t)); // Only real contributions/withdrawals
 
   const total = active.length;
@@ -29,12 +32,12 @@ export async function GET() {
   const uncategorized = total - categorized;
   const disqualifiedCount = all.filter(t => t.flag === "disqualified").length;
 
-  // Loan stats
-  const loanTxns = active.filter(t => isLoan(t));
-  const loanDisbursed = loanTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const loanRepaid = loanTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  // Line of Credit stats (by category)
+  const locTxns = active.filter(t => (t.category || "").toLowerCase().match(/line of credit/));
+  const loanDisbursed = locTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const loanRepaid = locTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const loanOutstanding = loanDisbursed - loanRepaid;
-  const loanCount = loanTxns.length;
+  const loanCount = locTxns.length;
 
   const suspiciousItems = active.filter(t =>
     t.flag === "suspicious" || t.flag === "critical" || t.flag === "verified_fraud" || (t.category && t.category.startsWith("SUSPICIOUS"))

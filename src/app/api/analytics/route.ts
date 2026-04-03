@@ -156,22 +156,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function isInternalTransfer(t: any): boolean {
+function excludeFromFlow(t: any): boolean {
   const dir = (t.direction || "").toLowerCase();
   const cat = (t.category || "").toLowerCase();
+  // Internal transfers
   if (dir.match(/internal|transfer between/)) return true;
   if (cat.match(/transfer.*between|internal.*transfer/)) return true;
+  // Line of credit transactions (informational only)
+  if (cat.match(/line of credit/)) return true;
   return false;
-}
-
-function isLoanTransaction(t: any): boolean {
-  const dir = (t.direction || "").toLowerCase();
-  return dir.match(/^loan/) !== null;
-}
-
-// Excludes from inflow/outflow: internal transfers and loans
-function excludeFromFlow(t: any): boolean {
-  return isInternalTransfer(t) || isLoanTransaction(t);
 }
 
 function extractParty(description: string | null): string {
