@@ -82,10 +82,11 @@ For each transaction, respond with a JSON array where each element has:
 - "reasoning": brief explanation
 
 IMPORTANT CATEGORY RULES FOR LINE OF CREDIT:
-- "Line of Credit" = ONLY for transactions on the "Loan Adela" account (the loan ledger). NOT for account M61750002.
-- "LOC Funded Deposit" = ONLY when money from LOC arrives INTO one of our non-LOC accounts AND you can identify the destination as one of our accounts from the description (e.g. "Transfer of Funds From 0002 To 741713181" where 741713181 is ours). Set counterparty to "Line of Credit (source account#)"
-- "LOC External Transfer" = when money from LOC goes to an account that is NOT ours, OR when a CREDIT MEMORANDUM / LOC transaction does NOT clearly show the money landing in one of our accounts. If in doubt, use LOC External Transfer.
-- Account M61750002 is the LOC operating account — transactions ON this account going to our accounts = Internal Transfer, going to external = LOC External Transfer
+- "Line of Credit" = ONLY for transactions on the "Loan Adela" account (the loan ledger). NOT for M61750002.
+- "LOC Funded Deposit" = when the transaction's OWN ACCOUNT (the "acct" field) is one of our non-LOC accounts AND the description mentions a loan/LOC advance (e.g. "CREDIT MEMORANDUM REF: ADVANCE ON LOAN", "LOAN DISBURSEMENT"). The money landed in our account from the LOC. Set counterparty to "Line of Credit".
+- "LOC External Transfer" = when the transaction is ON the LOC account (M61750002) and goes to an external account, OR when a CREDIT MEMORANDUM is on M61750002 going outward.
+- Transactions ON M61750002 going to our accounts = "Internal Transfer". Going to external = "LOC External Transfer".
+- KEY: Check the "acct" field to know WHICH account the transaction is on. If acct is one of our investment accounts and description says loan/advance, it's LOC Funded Deposit.
 
 Do NOT include "direction" in the response — direction will not be changed.
 Be aggressive about flagging suspicious transactions.
