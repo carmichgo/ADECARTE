@@ -52,7 +52,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "" });
-  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "" });
+  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -142,6 +142,7 @@ export default function Home() {
     if (filters.flag) q.set("flag", filters.flag);
     if (filters.min) q.set("min_amount", filters.min);
     if (filters.max) q.set("max_amount", filters.max);
+    if (filters.bank) q.set("bank", filters.bank);
     q.set("order", "id");
     q.set("desc", "1");
     const res = await fetch("/api/transactions?" + q.toString(), { cache: "no-store" });
@@ -1064,12 +1065,17 @@ export default function Home() {
                 <option value="">All Flags</option>
                 {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f === "disqualified" ? "Disqualified" : f}</option>)}
               </select>
+              <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
+                value={filters.bank} onChange={e => setFilters(p => ({ ...p, bank: e.target.value }))}>
+                <option value="">All Banks</option>
+                {[...new Set(transactions.map(t => t.bank).filter(Boolean))].sort().map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
               <input type="number" placeholder="Min $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
               <input type="number" placeholder="Max $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
               <button onClick={loadTransactions} className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Filter</button>
-              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Clear</button>
+              <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "" }); }} className="px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--bg-muted)]">Clear</button>
             </div>
             {selectedIds.size > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">

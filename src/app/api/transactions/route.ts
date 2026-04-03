@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     if (p.get("max_amount")) query = query.lte("amount", parseFloat(p.get("max_amount")!));
     if (p.get("date_from")) query = query.gte("date", p.get("date_from")!);
     if (p.get("date_to")) query = query.lte("date", p.get("date_to")!);
+    if (p.get("bank")) query = query.eq("bank", p.get("bank")!);
     if (p.get("batch")) query = query.eq("upload_batch", p.get("batch")!);
 
     const order = p.get("order") || "id";
