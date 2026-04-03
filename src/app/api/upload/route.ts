@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
     const isWithdraw = direction.match(/^(withdraw|withdrawal|sell|out|outgoing|debit|payment|disbursement)/) && !direction.match(/internal|transfer between/);
     const isContribution = direction.match(/^(contribut|buy|in|incoming|deposit|credit|receive)/);
     const amount = isWithdraw ? -Math.abs(rawAmount) : isContribution ? Math.abs(rawAmount) : rawAmount;
+    // Normalize direction to canonical values
+    const normalizedDirection = direction.match(/internal|transfer between/) ? "Internal Transfer" : isWithdraw ? "Withdraw" : isContribution ? "Contribution" : (row[fieldMap.direction] || "").trim();
 
     return {
     upload_batch: batchId,
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
     symbol: (row[fieldMap.symbol] || "").trim(),
     security: (row[fieldMap.security] || "").trim(),
     strategy: (row[fieldMap.strategy] || "").trim(),
-    direction: (row[fieldMap.direction] || "").trim(),
+    direction: normalizedDirection,
     bank: (row[fieldMap.bank] || "").trim(),
     raw_data: row,
     category: "",

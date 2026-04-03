@@ -47,6 +47,7 @@ export default function Home() {
 
   const [tab, setTab] = useState<Tab>("dashboard");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allBanks, setAllBanks] = useState<string[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -198,7 +199,10 @@ export default function Home() {
     setPartyLoading(false);
   };
 
-  useEffect(() => { loadCategories(); loadStats(); }, [loadCategories, loadStats]);
+  useEffect(() => {
+    loadCategories(); loadStats();
+    fetch("/api/banks", { cache: "no-store" }).then(r => r.json()).then(d => { if (Array.isArray(d)) setAllBanks(d); }).catch(() => {});
+  }, [loadCategories, loadStats]);
   useEffect(() => { if (tab === "transactions" || tab === "suspicious") loadTransactions(); }, [tab, loadTransactions]);
   useEffect(() => { if (tab === "dashboard") loadStats(); }, [tab, loadStats]);
   useEffect(() => { if (tab === "analytics") { loadAnalytics(); loadCounterparties(); } }, [tab, loadAnalytics]);
@@ -1097,7 +1101,7 @@ export default function Home() {
               <select className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)]"
                 value={filters.bank} onChange={e => setFilters(p => ({ ...p, bank: e.target.value }))}>
                 <option value="">All Banks</option>
-                {[...new Set(transactions.map(t => t.bank).filter(Boolean))].sort().map(b => <option key={b} value={b}>{b}</option>)}
+                {allBanks.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
               <input type="number" placeholder="Min $" className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] w-24"
                 value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
