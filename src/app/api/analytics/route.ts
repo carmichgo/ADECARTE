@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase, fetchAll } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getSupabase();
-    const { data: txns, error } = await db
-      .from("transactions")
-      .select("id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag, unit_price, quantity, strategy, settle_date")
-      .order("date", { ascending: true })
-      .limit(50000);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
 
     if (!txns || txns.length === 0) {
       return NextResponse.json({

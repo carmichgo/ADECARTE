@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase, fetchAll } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const { data: all, error } = await getSupabase().from("transactions").select("id, amount, category, flag, categorized_by, account, account_name, bank, direction").limit(50000);
-
-  if (error) {
-    console.error("Stats query error:", error);
-    return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_breakdown: [], by_category: [], by_flag: [] });
-  }
-  if (!all) return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_breakdown: [], by_category: [], by_flag: [] });
+  try {
+  const all = await fetchAll("transactions", "id, amount, category, flag, categorized_by, account, account_name, bank, direction");
 
   // Exclude disqualified from all stats
   const active = all.filter(t => t.flag !== "disqualified");
@@ -128,4 +123,8 @@ export async function GET() {
     td_active: tdActive,
     td_count: tdCount,
   });
+  } catch (err: any) {
+    console.error("Stats error:", err);
+    return NextResponse.json({ total_transactions: 0, total_amount: 0, categorized: 0, uncategorized: 0, suspicious_amount: 0, suspicious_count: 0, suspicious_breakdown: [], by_category: [], by_flag: [], by_account: [], verified_fraud_amount: 0, verified_fraud_count: 0, total_deposits: 0, total_withdrawals: 0, deposit_count: 0, withdrawal_count: 0, loan_disbursed: 0, loan_repaid: 0, loan_outstanding: 0, loan_count: 0, td_placed: 0, td_matured: 0, td_active: 0, td_count: 0 });
+  }
 }

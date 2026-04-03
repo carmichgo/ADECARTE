@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { fetchAll } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const db = getSupabase();
-  const { data: all } = await db.from("transactions").select("id, amount, category, flag, direction").limit(50000);
-  if (!all) return NextResponse.json({ error: "no data" });
+  const all = await fetchAll("transactions", "id, amount, category, flag, direction");
 
   const active = all.filter(t => t.flag !== "disqualified");
 
