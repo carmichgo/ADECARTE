@@ -17,35 +17,73 @@ export async function GET() {
     return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit|loc principal|loc interest/) || cat.match(/time deposit/);
   };
 
-  const excluded = active.filter(t => isExcluded(t));
   const flowTxns = active.filter(t => !isExcluded(t));
+  const excludedTxns = active.filter(t => isExcluded(t));
 
-  // Breakdown of what's excluded and why
-  const excludedByDir = active.filter(t => (t.direction || "").toLowerCase().match(/internal|transfer between/));
-  const excludedByCatTransfer = active.filter(t => (t.category || "").toLowerCase().match(/transfer.*between|internal.*transfer/));
-  const excludedByCatLOC = active.filter(t => (t.category || "").toLowerCase().match(/line of credit|loc principal|loc interest/));
-  const excludedByCatTD = active.filter(t => (t.category || "").toLowerCase().match(/time deposit/));
+  // DEPOSITS: all flow transactions with positive amount, grouped by category
+  const depositsByCat: Record<string, { count: number; total: number }> = {};
+  flowTxns.filter(t => (t.amount || 0) > 0).forEach(t => {
+    const cat = t.category || "(empty)";
+    if (!depositsByCat[cat]) depositsByCat[cat] = { count: 0, total: 0 };
+    depositsByCat[cat].count++;
+    depositsByCat[cat].total += t.amount;
+  });
+
+  // WITHDRAWALS: all flow transactions with negative amount, grouped by category
+  const withdrawsByCat: Record<string, { count: number; total: number }> = {};
+  flowTxns.filter(t => (t.amount || 0) < 0).forEach(t => {
+    const cat = t.category || "(empty)";
+    if (!withdrawsByCat[cat]) withdrawsByCat[cat] = { count: 0, total: 0 };
+    withdrawsByCat[cat].count++;
+    withdrawsByCat[cat].total += Math.abs(t.amount);
+  });
+
+  // EXCLUDED: grouped by category + direction
+  const excludedBreakdown: Record<string, { count: number; total: number; direction: string }> = {};
+  excludedTxns.forEach(t => {
+    const key = `${t.category || "(empty)"} | dir:${t.direction || "(empty)"}`;
+    if (!excludedBreakdown[key]) excludedBreakdown[key] = { count: 0, total: 0, direction: t.direction || "" };
+    excludedBreakdown[key].count++;
+    excludedBreakdown[key].total += t.amount || 0;
+  });
+
+  // ZERO amount transactions in flow
+  const zeroInFlow = flowTxns.filter(t => (t.amount || 0) === 0).length;
+
+  // Deposits by direction
+  const depositsByDir: Record<string, { count: number; total: number }> = {};
+  flowTxns.filter(t => (t.amount || 0) > 0).forEach(t => {
+    const dir = t.direction || "(empty)";
+    if (!depositsByDir[dir]) depositsByDir[dir] = { count: 0, total: 0 };
+    depositsByDir[dir].count++;
+    depositsByDir[dir].total += t.amount;
+  });
+
+  // Withdrawals by direction
+  const withdrawsByDir: Record<string, { count: number; total: number }> = {};
+  flowTxns.filter(t => (t.amount || 0) < 0).forEach(t => {
+    const dir = t.direction || "(empty)";
+    if (!withdrawsByDir[dir]) withdrawsByDir[dir] = { count: 0, total: 0 };
+    withdrawsByDir[dir].count++;
+    withdrawsByDir[dir].total += Math.abs(t.amount);
+  });
+
+  const sort = (obj: Record<string, any>) => Object.entries(obj).sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total));
 
   return NextResponse.json({
-    total_all: all.length,
-    total_active: active.length,
-    disqualified: all.length - active.length,
-    total_excluded: excluded.length,
-    excluded_by_direction_internal: excludedByDir.length,
-    excluded_by_cat_transfer: excludedByCatTransfer.length,
-    excluded_by_cat_loc: excludedByCatLOC.length,
-    excluded_by_cat_td: excludedByCatTD.length,
-    flow_txns: flowTxns.length,
-    flow_deposits: flowTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0),
-    flow_deposits_count: flowTxns.filter(t => (t.amount || 0) > 0).length,
-    flow_withdrawals: flowTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0),
-    flow_withdrawals_count: flowTxns.filter(t => (t.amount || 0) < 0).length,
-    // All positive amounts (no exclusion)
-    all_positive: active.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0),
-    all_positive_count: active.filter(t => (t.amount || 0) > 0).length,
-    // Unique categories
-    categories: [...new Set(all.map(t => t.category || "(empty)"))].sort(),
-    // Unique directions
-    directions: [...new Set(all.map(t => t.direction || "(empty)"))].sort(),
+    summary: {
+      total_all: all.length,
+      active: active.length,
+      excluded: excludedTxns.length,
+      in_flow: flowTxns.length,
+      zero_amount_in_flow: zeroInFlow,
+      total_deposits: flowTxns.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + t.amount, 0),
+      total_withdrawals: flowTxns.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + Math.abs(t.amount), 0),
+    },
+    deposits_by_category: sort(depositsByCat),
+    deposits_by_direction: sort(depositsByDir),
+    withdrawals_by_category: sort(withdrawsByCat),
+    withdrawals_by_direction: sort(withdrawsByDir),
+    excluded_breakdown: sort(excludedBreakdown),
   });
 }
