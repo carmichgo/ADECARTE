@@ -32,6 +32,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "All transactions are already categorized", preview: [] });
   }
 
+  // Pre-match: for M61750002 credit memos, find matching Loan Adela entries
+  const loanAdelaTxns = allTxns.filter(t => (t.account || "").toLowerCase().includes("loan adela") || (t.account_name || "").toLowerCase().includes("loan adela"));
+  const matchContext: Record<number, string> = {};
+
+  for (const txn of uncategorized) {
+    const acct = (txn.account || "").toUpperCase();
+    const desc = (txn.description || "").toUpperCase();
+    if (acct.includes("M61750002") && (desc.includes("CREDIT MEMORANDUM") || desc.includes("ADVANCE ON LOAN"))) {
+      // Find matching Loan Adela entry by amount and close date
+      const absAmount = Math.abs(txn.amount || 0);
+      const match = loanAdelaTxns.find(la => {
+        const laAmount = Math.abs(la.amount || 0);
+        const amountMatch = Math.abs(laAmount - absAmount) < 1; // within $1
+        const dateClose = txn.date === la.date || Math.abs(new Date(txn.date).getTime() - new Date(la.date).getTime()) < 3 * 24 * 60 * 60 * 1000; // within 3 days
+        return amountMatch && dateClose;
+      });
+      if (match) {
+        matchContext[txn.id] = `MATCHED LOAN ADELA ENTRY: "${match.description}" (amount: ${match.amount}, date: ${match.date}). Use this to determine if money went to our account or external.`;
+      }
+    }
+  }
+
   // Process max 100 at a time to avoid timeout
   const toProcess = uncategorized.slice(0, 100);
 
@@ -56,10 +78,10 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < toProcess.length; i += batchSize) {
     const batch = toProcess.slice(i, i + batchSize);
     const txnList = batch.map(t => ({
-      id: t.id, description: t.description, amount: t.amount,
-      counterparty: t.counterparty, reference: t.reference, date: t.date,
-      symbol: t.symbol, security: t.security, direction: t.direction,
-      account: t.account || t.account_name, strategy: t.strategy,
+      id: t.id, desc: (t.description || "").slice(0, 80), amount: t.amount,
+      cp: t.counterparty, dir: t.direction, date: t.date,
+      acct: t.account || t.account_name, sym: t.symbol,
+      ...(matchContext[t.id] ? { loan_match: matchContext[t.id] } : {}),
     }));
 
     const prompt = `You are a forensic accountant investigating potential financial fraud.
@@ -71,7 +93,7 @@ ${categoryList}
 ${JSON.stringify(examples.slice(0, 10).map(e => ({ desc: (e.description || "").slice(0, 60), amount: e.amount, cat: e.category, dir: e.direction, flag: e.flag })), null, 2)}
 
 ## TRANSACTIONS TO CATEGORIZE
-${JSON.stringify(txnList.map(t => ({ id: t.id, desc: (t.description || "").slice(0, 80), amount: t.amount, cp: t.counterparty, dir: t.direction, acct: t.account, sym: t.symbol })), null, 2)}
+${JSON.stringify(txnList, null, 2)}
 
 For each transaction, respond with a JSON array where each element has:
 - "id": transaction id
@@ -82,15 +104,16 @@ For each transaction, respond with a JSON array where each element has:
 - "reasoning": brief explanation
 
 IMPORTANT CATEGORY RULES FOR LINE OF CREDIT:
-- "Line of Credit" = ONLY for transactions on the "Loan Adela" account (the loan ledger). NOT for M61750002.
-- "LOC Funded Deposit" = ONLY when the transaction's OWN ACCOUNT ("acct" field) is one of our INVESTMENT accounts (NOT M61750002, NOT Loan Adela) AND the description mentions loan/advance. The money landed in our investment account from the LOC.
-- Any transaction ON account M61750002 (LOC operating account):
-  * CREDIT MEMORANDUM / ADVANCE ON LOAN on M61750002 = "Line of Credit" (money drawn from credit line into the LOC operating account)
-  * Transfer FROM M61750002 TO one of our investment accounts = "Internal Transfer"
-  * Transfer FROM M61750002 TO external account = "LOC External Transfer"
-  * NEVER use "LOC Funded Deposit" for transactions on M61750002
-- "Line of Credit" = for transactions on "Loan Adela" OR for ADVANCE ON LOAN / CREDIT MEMORANDUM on M61750002
-- KEY: Check "acct" field. If acct = M61750002 → it's the LOC side. If acct = any investment account → it's the receiving side.
+- "Line of Credit" = ONLY for transactions on account "Loan Adela". NEVER for any other account.
+- For CREDIT MEMORANDUM / ADVANCE ON LOAN on M61750002:
+  * If the transaction has a "loan_match" field, READ IT. It shows the matching Loan Adela entry.
+  * If the loan_match description mentions one of our accounts → "LOC Funded Deposit" (money went to our account)
+  * If the loan_match description mentions an external destination (e.g. "MXN", unknown account) → "LOC External Transfer"
+  * If no loan_match → "LOC External Transfer" (safer default)
+- For transactions ON our investment accounts with loan/advance description → "LOC Funded Deposit"
+- Transfer FROM M61750002 TO our accounts = "Internal Transfer"
+- Transfer FROM M61750002 TO external = "LOC External Transfer"
+- NEVER use "Line of Credit" for M61750002. NEVER use "LOC Funded Deposit" for M61750002.
 
 Do NOT include "direction" in the response — direction will not be changed.
 Be aggressive about flagging suspicious transactions.
@@ -121,7 +144,7 @@ Respond with ONLY the JSON array.`;
 
       // Attach original transaction data for preview
       for (const r of results) {
-        const orig = batch.find(t => t.id === r.id);
+        const orig = toProcess.find(t => t.id === r.id);
         if (orig) {
           allResults.push({
             ...r,
