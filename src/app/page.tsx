@@ -1227,7 +1227,7 @@ export default function Home() {
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4 space-y-3">
               {/* Row 1: Primary filters */}
               <div className="flex flex-wrap gap-2 items-center">
-                <input placeholder="Search descriptions, notes, counterparties..." className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]"
+                <input placeholder="Search descriptions, receiving entities, beneficiaries..." className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]"
                   value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
                   onKeyDown={e => { if (e.key === "Enter") loadTransactions(); }} />
                 <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
@@ -1273,7 +1273,7 @@ export default function Home() {
                   </select>
                   <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
                     value={filters.counterparty} onChange={e => setFilters(p => ({ ...p, counterparty: e.target.value }))}>
-                    <option value="">All Counterparties</option>
+                    <option value="">All Receiving Entities</option>
                     {allCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
@@ -1339,7 +1339,7 @@ export default function Home() {
                       ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
-                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Counterparty"], ["beneficiary", "Beneficiary"],
+                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Receiving Entity"], ["beneficiary", "Beneficiary"],
                       ["category", "Category"], ["flag", "Flag"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
@@ -1592,7 +1592,7 @@ export default function Home() {
 
           // Export filtered suspicious
           const exportSuspicious = () => {
-            const headers = ["Date", "Description", "Amount", "Direction", "Counterparty", "Account", "Bank", "Category", "Flag", "Notes"];
+            const headers = ["Date", "Description", "Amount", "Direction", "Receiving Entity", "Account", "Bank", "Category", "Flag", "Notes"];
             const rows = filtered.map(t => [t.date, t.description, t.amount, t.direction, t.counterparty, t.account || t.account_name, t.bank, t.category, t.flag, t.notes].map(v => {
               const s = String(v ?? ""); return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
             }).join(","));
@@ -1637,7 +1637,7 @@ export default function Home() {
             {/* Filters */}
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4">
               <div className="flex flex-wrap gap-3 items-center">
-                <input placeholder="Search descriptions, notes, counterparties..."
+                <input placeholder="Search descriptions, receiving entities, beneficiaries..."
                   className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 w-72"
                   value={suspFilter.search} onChange={e => setSuspFilter(p => ({ ...p, search: e.target.value }))} />
                 <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
@@ -1654,7 +1654,7 @@ export default function Home() {
                 </select>
                 <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
                   value={suspFilter.counterparty} onChange={e => setSuspFilter(p => ({ ...p, counterparty: e.target.value }))}>
-                  <option value="">All Counterparties</option>
+                  <option value="">All Receiving Entities</option>
                   {suspCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {(suspFilter.search || suspFilter.flag !== "all" || suspFilter.category || suspFilter.counterparty) && (
@@ -1692,7 +1692,7 @@ export default function Home() {
                       <th className="bg-[var(--bg-muted)] px-3 py-2.5 w-8"><input type="checkbox"
                         checked={suspSelected.size === filtered.length && filtered.length > 0}
                         onChange={() => suspSelected.size === filtered.length ? setSuspSelected(new Set()) : setSuspSelected(new Set(filtered.map(t => t.id)))} /></th>
-                      {([["date","Date"],["description","Description"],["amount","Amount"],["counterparty","Counterparty"],["account","Account"],["bank","Bank"],["direction","Dir"],["category","Category"],["flag","Flag"]] as [string,string][]).map(([key, label]) => (
+                      {([["date","Date"],["description","Description"],["amount","Amount"],["counterparty","Receiving Entity"],["account","Account"],["bank","Bank"],["direction","Dir"],["category","Category"],["flag","Flag"]] as [string,string][]).map(([key, label]) => (
                         <th key={key} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase px-3 py-2.5 text-left cursor-pointer hover:text-[var(--text)] select-none"
                           onClick={() => setSuspSort(prev => prev.field === key ? { field: key, desc: !prev.desc } : { field: key, desc: true })}>
                           {label} {suspSort.field === key ? (suspSort.desc ? "↓" : "↑") : ""}
@@ -1771,13 +1771,13 @@ export default function Home() {
                     </tbody>
                   </table>
                 </div>
-                {/* By Counterparty */}
+                {/* By Receiving Entity */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
-                  <h3 className="text-sm font-semibold mb-3">By Counterparty</h3>
+                  <h3 className="text-sm font-semibold mb-3">By Receiving Entity</h3>
                   <div className="max-h-[250px] overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="text-[var(--text-muted)] text-xs uppercase sticky top-0 bg-white">
-                        <th className="text-left py-1.5">Counterparty</th><th className="text-right py-1.5">Count</th><th className="text-right py-1.5">Amount</th>
+                        <th className="text-left py-1.5">Receiving Entity</th><th className="text-right py-1.5">Count</th><th className="text-right py-1.5">Amount</th>
                       </tr></thead>
                       <tbody>
                         {Object.entries(byCounterparty).sort((a, b) => b[1].total - a[1].total).map(([cp, d]) => (
@@ -1867,7 +1867,7 @@ export default function Home() {
             <div className="flex items-center gap-1 border-b border-[var(--border)] mb-6">
               {([
                 ["overview", "Overview"],
-                ["counterparties", "Counterparties"],
+                ["counterparties", "Receiving Entities"],
                 ["flow", "Money Flow"],
                 ["fraud", "Fraud Impact"],
                 ["tools", "AI Tools"],
@@ -1925,7 +1925,7 @@ export default function Home() {
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold">AI Party Identification</h3>
+                  <h3 className="font-semibold">AI Receiving Entity Identification</h3>
                   <p className="text-sm text-[var(--text-muted)] mt-1">Use AI to read transaction descriptions and identify who sent or received money.</p>
                 </div>
                 <button onClick={runPartyExtraction} disabled={partyLoading}
@@ -1936,11 +1936,11 @@ export default function Home() {
               {partyStatus && <StatusMsg status={partyStatus} />}
             </div>
 
-            {/* Merge Counterparties */}
+            {/* Merge Receiving Entities */}
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="font-semibold">Merge Counterparties</h3>
+                  <h3 className="font-semibold">Merge Receiving Entities</h3>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">AI auto-merge or manually select duplicates.</p>
                 </div>
                 <div className="flex gap-2">
@@ -1987,7 +1987,7 @@ export default function Home() {
 
               {/* Manual merge */}
               <div className="flex gap-2 mb-3 items-center">
-                <input placeholder="Search counterparties..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-64"
+                <input placeholder="Search receiving entities..." className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-muted)] w-64"
                   value={mergeSearch} onChange={e => setMergeSearch(e.target.value)} />
                 <span className="text-xs text-[var(--text-muted)]">{mergeSelected.size} selected</span>
                 {mergeSelected.size > 0 && (
@@ -1996,7 +1996,7 @@ export default function Home() {
               </div>
               <div className="max-h-[250px] overflow-y-auto border border-[var(--border)] rounded-2xl mb-3">
                 {counterparties.length === 0 ? (
-                  <p className="text-sm text-[var(--text-muted)] p-4 text-center">No counterparties found. Run AI Party Identification first.</p>
+                  <p className="text-sm text-[var(--text-muted)] p-4 text-center">No counterparties found. Run AI Receiving Entity Identification first.</p>
                 ) : counterparties
                     .filter(c => !mergeSearch || c.name.toLowerCase().includes(mergeSearch.toLowerCase()))
                     .map(c => (
@@ -2315,9 +2315,9 @@ export default function Home() {
 
                 {/* === Counterparties Tab === */}
                 {analyticsTab === "counterparties" && (<>
-                {/* Chart 3: Counterparty Breakdown */}
+                {/* Chart 3: Receiving Entity Breakdown */}
                 <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
-                  <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Counterparty</h3>
+                  <h3 className="font-semibold mb-1">Deposits vs Withdrawals by Receiving Entity</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-4">Number of incoming vs outgoing transactions per party.</p>
                   {filteredTransactionCounts.length === 0 ? (
                     <p className="text-[var(--text-muted)] text-sm py-8 text-center">No data available</p>
@@ -2495,13 +2495,13 @@ export default function Home() {
                                         <div>
                                           <span className="font-semibold text-[var(--text-muted)]">Source:</span>
                                           <p className="mt-1">{m.source.description || "-"}</p>
-                                          <p className="text-[var(--text-muted)]">Counterparty: {m.source.counterparty || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Receiving Entity: {m.source.counterparty || "-"}</p>
                                           <p className="text-[var(--text-muted)]">Flag: {m.source.flag || "-"}</p>
                                         </div>
                                         <div>
                                           <span className="font-semibold text-[var(--text-muted)]">Destination:</span>
                                           <p className="mt-1">{m.dest.description || "-"}</p>
-                                          <p className="text-[var(--text-muted)]">Counterparty: {m.dest.counterparty || "-"}</p>
+                                          <p className="text-[var(--text-muted)]">Receiving Entity: {m.dest.counterparty || "-"}</p>
                                           <p className="text-[var(--text-muted)]">Flag: {m.dest.flag || "-"}</p>
                                         </div>
                                       </div>
@@ -2573,7 +2573,7 @@ export default function Home() {
                             <th className="px-2 py-2 text-left">Account</th>
                             <th className="px-2 py-2 text-right">Amount</th>
                             <th className="px-2 py-2 text-left">Description</th>
-                            <th className="px-2 py-2 text-left">Counterparty</th>
+                            <th className="px-2 py-2 text-left">Receiving Entity</th>
                             <th className="px-2 py-2 text-left">Flag</th>
                           </tr></thead>
                           <tbody>
@@ -2755,7 +2755,7 @@ export default function Home() {
                         <div className="mt-4 overflow-x-auto">
                           <table className="w-full text-xs border border-[var(--border)] rounded-2xl">
                             <thead><tr>
-                              {["Date", "Description", "Counterparty", "Account", "Strategy", "Rate", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
+                              {["Date", "Description", "Receiving Entity", "Account", "Strategy", "Rate", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
                                 <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
                               ))}
                             </tr></thead>
@@ -3116,7 +3116,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Counterparty Drill-Down Modal */}
+      {/* Receiving Entity Drill-Down Modal */}
       {drillCounterparty && analyticsData?.raw_transactions && (() => {
         const txns = analyticsData.raw_transactions
           .filter((t: any) => t.counterparty === drillCounterparty)
@@ -3217,9 +3217,9 @@ export default function Home() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-[var(--text-muted)] mb-1">Counterparty</label>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Receiving Entity</label>
                 <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
-                  placeholder="Who sent or received the money"
+                  placeholder="Bank/entity that sent or received the money"
                   value={editForm.counterparty} onChange={e => setEditForm(p => ({ ...p, counterparty: e.target.value }))} />
               </div>
               <div>
