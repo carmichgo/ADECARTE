@@ -53,7 +53,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "" });
+  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "" });
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
@@ -504,7 +504,7 @@ export default function Home() {
   // ── Edit ───
   const openEdit = async (t: Transaction) => {
     setEditTxn(t);
-    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "" });
+    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "", amount: String(t.amount ?? "") });
     setEditDocs([]);
     setDocUploadStatus("");
     setSigCompareResult(null);
@@ -589,7 +589,7 @@ export default function Home() {
     const res = await fetch(`/api/transactions/${editTxn.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify({ ...editForm, amount: editForm.amount !== "" ? parseFloat(editForm.amount) : undefined }),
     });
     const result = await res.json();
     if (result.error) {
@@ -2821,6 +2821,11 @@ export default function Home() {
               {editTxn.security && <div className="mt-1"><strong>Security:</strong> {editTxn.security}</div>}
             </div>
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">Amount (use negative for withdrawals/outgoing)</label>
+                <input type="number" step="0.01" className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
+                  value={editForm.amount} onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} />
+              </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Category</label>
                 <select className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
