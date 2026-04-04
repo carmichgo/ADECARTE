@@ -157,9 +157,13 @@ Respond with ONLY the JSON array.`;
               amount: orig.amount,
               date: orig.date,
               counterparty: orig.counterparty,
+              beneficiary: orig.beneficiary,
               direction: orig.direction,
               category: orig.category,
               flag: orig.flag,
+              account: orig.account || orig.account_name,
+              symbol: orig.symbol,
+              security: orig.security,
             },
           });
         }

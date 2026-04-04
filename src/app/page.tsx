@@ -1490,57 +1490,89 @@ export default function Home() {
                   </div>
                   <StatusMsg status={aiStatus} />
 
-                  {/* Preview table */}
+                  {/* Preview */}
                   {aiPreview && aiPreview.length > 0 && (
-                    <div className="mt-4 border border-[var(--border)] rounded-xl overflow-hidden">
-                      <div className="bg-[var(--bg-muted)] px-4 py-2.5 flex items-center justify-between">
-                        <span className="text-xs font-semibold">{aiPreviewAccepted.size} of {aiPreview.length} selected</span>
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold">{aiPreviewAccepted.size} of {aiPreview.length} selected</span>
                         <div className="flex gap-3">
                           <button onClick={() => setAiPreviewAccepted(new Set(aiPreview.map((p: any) => p.id)))}
-                            className="text-xs text-indigo-600 hover:underline">All</button>
+                            className="text-xs text-indigo-600 hover:underline">Select All</button>
                           <button onClick={() => setAiPreviewAccepted(new Set())}
-                            className="text-xs text-[var(--text-muted)] hover:underline">None</button>
+                            className="text-xs text-[var(--text-muted)] hover:underline">Deselect All</button>
                         </div>
                       </div>
-                      <div className="max-h-[400px] overflow-auto">
-                        <table className="w-full text-xs">
-                          <thead><tr className="bg-[var(--bg-page)] sticky top-0">
-                            <th className="px-3 py-2 text-left w-8"></th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Date</th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Description</th>
-                            <th className="px-3 py-2 text-right text-[var(--text-muted)] font-medium">Amount</th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Category</th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Flag</th>
-                            <th className="px-3 py-2 text-left text-[var(--text-muted)] font-medium">Reasoning</th>
-                          </tr></thead>
-                          <tbody>
-                            {aiPreview.map((p: any, idx: number) => {
-                              const accepted = aiPreviewAccepted.has(p.id);
-                              const updateProp = (field: string, value: string) => {
-                                const next = [...aiPreview!]; next[idx] = { ...next[idx], [field]: value }; setAiPreview(next);
-                              };
-                              return (
-                                <tr key={p.id} className={`border-t border-[var(--border-subtle)] ${accepted ? "hover:bg-[var(--bg-muted)]" : "opacity-30"}`}>
-                                  <td className="px-3 py-2"><input type="checkbox" checked={accepted} onChange={() => { const n = new Set(aiPreviewAccepted); accepted ? n.delete(p.id) : n.add(p.id); setAiPreviewAccepted(n); }} /></td>
-                                  <td className="px-3 py-2 whitespace-nowrap">{p.original?.date || "-"}</td>
-                                  <td className="px-3 py-2 max-w-[180px] truncate" title={p.original?.description}>{p.original?.description || "-"}</td>
-                                  <td className={`px-3 py-2 text-right tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</td>
-                                  <td className="px-3 py-1">
-                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs w-full" value={p.category} onChange={e => updateProp("category", e.target.value)}>
-                                      {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                    </select>
-                                  </td>
-                                  <td className="px-3 py-1">
-                                    <select className="bg-transparent border border-[var(--border)] rounded px-1 py-0.5 text-xs" value={p.flag} onChange={e => updateProp("flag", e.target.value)}>
-                                      {["normal","review","suspicious","critical","verified_fraud"].map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
-                                  </td>
-                                  <td className="px-3 py-2 max-w-[200px] truncate text-[var(--text-muted)]" title={p.reasoning}>{p.reasoning}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                      <div className="max-h-[500px] overflow-y-auto space-y-3 pr-1">
+                        {aiPreview.map((p: any, idx: number) => {
+                          const accepted = aiPreviewAccepted.has(p.id);
+                          const updateProp = (field: string, value: string) => {
+                            const next = [...aiPreview!]; next[idx] = { ...next[idx], [field]: value }; setAiPreview(next);
+                          };
+                          return (
+                            <div key={p.id} className={`border rounded-xl overflow-hidden transition-all ${accepted ? "border-indigo-300 bg-white shadow-sm" : "border-[var(--border)] bg-[var(--bg-muted)] opacity-50"}`}>
+                              {/* Header: checkbox + original transaction info */}
+                              <div className="flex items-start gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
+                                <input type="checkbox" checked={accepted} className="mt-1"
+                                  onChange={() => { const n = new Set(aiPreviewAccepted); accepted ? n.delete(p.id) : n.add(p.id); setAiPreviewAccepted(n); }} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3 text-xs">
+                                    <span className="text-[var(--text-muted)]">{p.original?.date || "-"}</span>
+                                    <span className="text-[var(--text-muted)]">Acct: {p.original?.account || "-"}</span>
+                                    <span className={`font-semibold tabular-nums ${(p.original?.amount || 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(p.original?.amount)}</span>
+                                    <span className="text-[var(--text-muted)]">Dir: {p.original?.direction || "-"}</span>
+                                  </div>
+                                  <p className="text-sm mt-1 text-[var(--text)]" title={p.original?.description}>{p.original?.description || "-"}</p>
+                                  {p.original?.counterparty && <p className="text-xs text-[var(--text-muted)] mt-0.5">Receiving Entity: {p.original.counterparty}</p>}
+                                </div>
+                                {p.confidence != null && (
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.confidence >= 0.8 ? "bg-emerald-50 text-emerald-600" : p.confidence >= 0.5 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"}`}>
+                                    {(p.confidence * 100).toFixed(0)}%
+                                  </span>
+                                )}
+                              </div>
+                              {/* Editable fields */}
+                              <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-[10px] text-[var(--text-muted)] mb-1 font-medium">Category</label>
+                                  <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs"
+                                    value={p.category} onChange={e => updateProp("category", e.target.value)}>
+                                    <option value="">Select...</option>
+                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-[var(--text-muted)] mb-1 font-medium">Flag</label>
+                                  <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs"
+                                    value={p.flag} onChange={e => updateProp("flag", e.target.value)}>
+                                    {["normal","review","suspicious","critical","verified_fraud","disqualified"].map(f => <option key={f} value={f}>{f}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-[var(--text-muted)] mb-1 font-medium">Direction</label>
+                                  <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs"
+                                    value={p.direction || p.original?.direction || ""} onChange={e => updateProp("direction", e.target.value)}>
+                                    <option value="">Keep current</option>
+                                    <option value="Contribution">Contribution</option>
+                                    <option value="Withdraw">Withdraw</option>
+                                    <option value="Internal Transfer">Internal Transfer</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-[var(--text-muted)] mb-1 font-medium">Receiving Entity</label>
+                                  <input className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs"
+                                    value={p.counterparty || ""} onChange={e => updateProp("counterparty", e.target.value)}
+                                    placeholder={p.original?.counterparty || "Enter receiving entity..."} />
+                                </div>
+                              </div>
+                              {/* AI reasoning */}
+                              {p.reasoning && (
+                                <div className="px-4 py-2 bg-[var(--bg-muted)] border-t border-[var(--border-subtle)]">
+                                  <p className="text-[10px] text-[var(--text-muted)]"><span className="font-medium">AI:</span> {p.reasoning}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

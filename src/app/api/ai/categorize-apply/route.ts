@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
       categorized_by: "ai",
     };
     if (p.counterparty) update.counterparty = p.counterparty;
+    if (p.direction && p.direction !== "") update.direction = p.direction;
+    if (p.beneficiary) update.beneficiary = p.beneficiary;
     await db.from("transactions").update(update).eq("id", p.id);
     applied++;
   }
