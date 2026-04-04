@@ -99,24 +99,28 @@ For each transaction, respond with a JSON array where each element has:
 - "id": transaction id
 - "category": exact category name
 - "subcategory": optional label
-- "flag": "normal" | "review" | "suspicious" | "critical"
+- "flag": "normal" | "review" | "suspicious" | "critical" | "disqualified"
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
 
-IMPORTANT CATEGORY RULES FOR LINE OF CREDIT:
-- "Line of Credit" = ONLY for transactions on account "Loan Adela". NEVER for any other account.
-- For CREDIT MEMORANDUM / ADVANCE ON LOAN on M61750002:
-  * If the transaction has a "loan_match" field, READ IT. It shows the matching Loan Adela entry.
-  * If the loan_match description mentions one of our accounts → "LOC Funded Deposit" (money went to our account)
-  * If the loan_match description mentions an external destination (e.g. "MXN", unknown account) → "LOC External Transfer"
-  * If no loan_match → "LOC External Transfer" (safer default)
-- For transactions ON our investment accounts with loan/advance description → "LOC Funded Deposit"
-- Transfer FROM M61750002 TO our accounts = "Internal Transfer"
-- Transfer FROM M61750002 TO external = "LOC External Transfer"
-- NEVER use "Line of Credit" for M61750002. NEVER use "LOC Funded Deposit" for M61750002.
+CRITICAL RULES FOR M61750002 (JPM Brokerage — PASS-THROUGH account):
+M61750002 is a pass-through. Money enters and exits. Same amount appears positive then negative within 1-2 days. Do NOT double-count.
+
+- CREDIT MEMORANDUM on M61750002 (positive) → flag = "disqualified". Funding side only. Real outflow is the paired FX SPOT/wire.
+- FX SPOT CURRENCY on M61750002 (negative) → "LOC External Transfer", flag "critical". This is the REAL outflow.
+- FOREIGN CASH / MXN DELD / EUR DELD on M61750002 (positive) → flag = "disqualified". FX delivery record, misleading positive amount.
+- PAYMENTS "WIRE TO" on M61750002 (negative) → "LOC External Transfer" if external, "Internal Transfer" if to our accounts.
+- PAYMENTS "FUNDS TRANSFERRED" on M61750002 → "Internal Transfer" if both accounts are ours.
+- SECURITY PENDING / TIME DEPOSITS → "Time Deposit".
+- DEBIT MEMORANDUM on M61750002 → "LOC Interest Payment".
+
+OTHER RULES:
+- "Line of Credit" = ONLY for "Loan Adela" account. NEVER for M61750002.
+- "LOC Funded Deposit" = ONLY on our INVESTMENT accounts (NOT M61750002) when description mentions loan/advance.
+- If transaction has "loan_match" field → read it to understand where loan money went.
 
 Do NOT include "direction" in the response — direction will not be changed.
-Be aggressive about flagging suspicious transactions.
+Be aggressive about flagging suspicious transactions. ALL LOC-related = "suspicious" or "critical", NEVER "normal".
 Respond with ONLY the JSON array.`;
 
     try {
