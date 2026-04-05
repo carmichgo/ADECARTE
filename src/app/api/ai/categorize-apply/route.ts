@@ -44,8 +44,15 @@ export async function POST(req: NextRequest) {
       notes: `[AI confidence: ${p.confidence ?? "?"}] ${p.reasoning || ""}`,
       categorized_by: "ai",
     };
+    // Auto-fix direction based on category rules
+    if (p.category === "LOC External Transfer" && (!p.direction || p.direction === "Contribution")) {
+      update.direction = "Withdraw";
+    }
+    if (p.category === "Internal Transfer") {
+      update.direction = "Internal Transfer";
+    }
+    if (p.direction && p.direction !== "" && p.direction !== "Keep current") update.direction = p.direction;
     if (p.counterparty) update.counterparty = p.counterparty;
-    if (p.direction && p.direction !== "") update.direction = p.direction;
     if (p.beneficiary) update.beneficiary = p.beneficiary;
     await db.from("transactions").update(update).eq("id", p.id);
     applied++;
