@@ -19,7 +19,7 @@ interface Transaction {
   symbol: string; security: string; strategy: string; direction: string;
   bank: string; category: string; subcategory: string; flag: string; notes: string;
   categorized_by: string; raw_data: any; documents: any[]; fraudulent_signature: boolean | null;
-  beneficiary: string;
+  beneficiary: string; match_group: string;
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
 interface Stats {
@@ -685,6 +685,8 @@ export default function Home() {
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
   const [beneficiaryLoading, setBeneficiaryLoading] = useState(false);
   const [beneficiaryStatus, setBeneficiaryStatus] = useState("");
+  const [matchGroupView, setMatchGroupView] = useState<string | null>(null);
+  const [matchGroupTxns, setMatchGroupTxns] = useState<any[]>([]);
 
   const bulkAiCategorize = async () => {
     if (selectedIds.size === 0) return;
@@ -725,6 +727,35 @@ export default function Home() {
       }
     } catch (err: any) { setBeneficiaryStatus("Error: " + err.message); }
     setBeneficiaryLoading(false);
+  };
+
+  const linkSelected = async () => {
+    if (selectedIds.size < 2) return;
+    await fetch("/api/transactions/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "link", ids: [...selectedIds] }),
+    });
+    loadTransactions();
+    setSelectedIds(new Set());
+  };
+
+  const viewMatchGroup = async (group: string) => {
+    setMatchGroupView(group);
+    const res = await fetch(`/api/transactions/match?group=${encodeURIComponent(group)}`, { cache: "no-store" });
+    const data = await res.json();
+    if (Array.isArray(data)) setMatchGroupTxns(data);
+  };
+
+  const unlinkMatchGroup = async (group: string) => {
+    const res = await fetch("/api/transactions/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unlink", ids: matchGroupTxns.map(t => t.id) }),
+    });
+    setMatchGroupView(null);
+    setMatchGroupTxns([]);
+    loadTransactions();
   };
 
   const bulkDelete = async () => {
@@ -1323,6 +1354,13 @@ export default function Home() {
                   className="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 rounded text-sm font-medium">
                   {bulkAiLoading ? <><span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> AI...</> : `AI Categorize (${selectedIds.size})`}
                 </button>
+                {selectedIds.size >= 2 && (<>
+                  <div className="h-4 w-px bg-[var(--border)]" />
+                  <button onClick={linkSelected}
+                    className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 rounded text-sm font-medium">
+                    Link Match ({selectedIds.size})
+                  </button>
+                </>)}
                 <div className="h-4 w-px bg-[var(--border)]" />
                 <button onClick={bulkDelete}
                   className="px-3 py-1 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded text-sm font-medium">
@@ -1340,7 +1378,7 @@ export default function Home() {
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
                       ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Receiving Entity"], ["beneficiary", "Beneficiary"],
-                      ["category", "Category"], ["flag", "Flag"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
+                      ["category", "Category"], ["flag", "Flag"], ["match_group", "Match"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
                         onClick={() => handleSort(f)}>
@@ -1391,6 +1429,14 @@ export default function Home() {
                       <td className="px-3 py-2 text-[var(--text-muted)]">{t.beneficiary || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
+                      <td className="px-3 py-2 text-center">
+                        {t.match_group ? (
+                          <button onClick={() => viewMatchGroup(t.match_group)}
+                            className="px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-600 rounded-full text-[10px] font-semibold hover:bg-blue-100" title="View linked transactions">
+                            linked
+                          </button>
+                        ) : <span className="text-[var(--text-muted)] text-xs">-</span>}
+                      </td>
                       <td className="px-3 py-2 text-center">{t.fraudulent_signature === true ? <span className="text-red-600 text-xs font-bold" title="Fraudulent signature detected">FRAUD</span> : t.fraudulent_signature === false ? <span className="text-emerald-600 text-xs" title="Signature verified">OK</span> : <span className="text-[var(--text-muted)] text-xs">-</span>}</td>
                       <td className="px-3 py-2"><SourceBadge src={t.categorized_by} /></td>
                       <td className="px-3 py-2 text-center flex gap-1 justify-center">
@@ -3147,6 +3193,71 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Match Group Modal */}
+      {matchGroupView && matchGroupTxns.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setMatchGroupView(null)} />
+          <div className="relative bg-white border border-[var(--border)] rounded-2xl shadow-xl w-[800px] max-w-[95vw] max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold">Linked Transactions</h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">{matchGroupTxns.length} transactions in this match group</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => unlinkMatchGroup(matchGroupView)}
+                  className="px-3 py-1.5 text-xs bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded-lg">Unlink All</button>
+                <button onClick={() => setMatchGroupView(null)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg ml-2">&times;</button>
+              </div>
+            </div>
+            <div className="overflow-auto flex-1 p-4">
+              {/* Flow visualization */}
+              <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+                {matchGroupTxns.map((t: any, i: number) => (
+                  <React.Fragment key={t.id}>
+                    {i > 0 && (
+                      <div className="flex-shrink-0 text-[var(--text-muted)]">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className={`flex-shrink-0 border rounded-xl p-3 min-w-[200px] ${t.amount < 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
+                      <div className="text-[10px] text-[var(--text-muted)] font-medium">{t.bank || "-"} · {t.account || "-"}</div>
+                      <div className={`text-lg font-bold ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{t.date}</div>
+                      <div className="text-xs mt-1 truncate max-w-[180px]" title={t.description}>{t.description}</div>
+                      {t.counterparty && <div className="text-[10px] text-[var(--text-muted)] mt-1">→ {t.counterparty}</div>}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+              {/* Detail table */}
+              <table className="w-full text-sm">
+                <thead><tr className="text-[var(--text-muted)] text-xs uppercase border-b border-[var(--border)]">
+                  {["Date", "Account", "Bank", "Description", "Amount", "Direction", "Category", "Flag"].map(h => (
+                    <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {matchGroupTxns.map((t: any) => (
+                    <tr key={t.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                      <td className="px-3 py-2 whitespace-nowrap">{t.date}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{t.account}</td>
+                      <td className="px-3 py-2">{t.bank || "-"}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate" title={t.description}>{t.description}</td>
+                      <td className={`px-3 py-2 tabular-nums font-semibold ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
+                      <td className="px-3 py-2">{t.direction || "-"}</td>
+                      <td className="px-3 py-2">{t.category || "-"}</td>
+                      <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Receiving Entity Drill-Down Modal */}
       {drillCounterparty && analyticsData?.raw_transactions && (() => {
