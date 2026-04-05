@@ -45,13 +45,12 @@ export async function POST(req: NextRequest) {
       categorized_by: "ai",
     };
     // Auto-fix direction based on category rules
-    if (p.category === "LOC External Transfer" && (!p.direction || p.direction === "Contribution")) {
-      update.direction = "Withdraw";
-    }
-    if (p.category === "Internal Transfer") {
-      update.direction = "Internal Transfer";
-    }
-    if (p.direction && p.direction !== "" && p.direction !== "Keep current") update.direction = p.direction;
+    if (p.category === "LOC External Transfer") update.direction = "Withdraw";
+    if (p.category === "Internal Transfer") update.direction = "Internal Transfer";
+    if (p.category === "Transfers Between Accounts") update.direction = "Internal Transfer";
+    if (p.category === "LOC Funded Deposit") update.direction = "Contribution";
+    // Manual override from the preview UI takes priority
+    if (p.direction && p.direction !== "" && p.direction !== "Keep current" && p.direction !== update.direction) update.direction = p.direction;
     if (p.counterparty) update.counterparty = p.counterparty;
     if (p.beneficiary) update.beneficiary = p.beneficiary;
     await db.from("transactions").update(update).eq("id", p.id);

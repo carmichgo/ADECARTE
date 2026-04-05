@@ -100,6 +100,7 @@ For each transaction, respond with a JSON array where each element has:
 - "category": exact category name
 - "subcategory": optional label
 - "flag": "normal" | "review" | "suspicious" | "critical" | "disqualified"
+- "direction": ONLY set this if it MUST change. Use "Internal Transfer" for internal transfers, "Withdraw" for LOC External Transfer. Leave empty string "" to keep current direction.
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
 
@@ -119,7 +120,7 @@ OTHER RULES:
 - "LOC Funded Deposit" = ONLY on our INVESTMENT accounts (NOT M61750002) when description mentions loan/advance.
 - If transaction has "loan_match" field → read it to understand where loan money went.
 
-Do NOT include "direction" in the response — direction will not be changed.
+Set "direction" ONLY when the category requires it: "Internal Transfer" → direction must be "Internal Transfer". "LOC External Transfer" → direction must be "Withdraw". For everything else, use "" to keep current direction.
 Be aggressive about flagging suspicious transactions. ALL LOC-related = "suspicious" or "critical", NEVER "normal".
 Respond with ONLY the JSON array.`;
 
