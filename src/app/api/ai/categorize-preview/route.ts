@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Get ALL transactions, filter uncategorized client-side (same logic as stats)
   const cols = "id, description, amount, counterparty, reference, date, symbol, security, direction, account, account_name, strategy, category, flag, categorized_by";
   const allTxns = await fetchAll("transactions", cols);
-  const uncategorized = allTxns.filter(t => !t.category || t.category === "");
+  const uncategorized = allTxns.filter(t => (!t.category || t.category === "") && t.flag !== "disqualified");
 
   if (uncategorized.length === 0) {
     return NextResponse.json({ message: "All transactions are already categorized", preview: [] });
