@@ -687,6 +687,9 @@ export default function Home() {
   const [beneficiaryStatus, setBeneficiaryStatus] = useState("");
   const [matchGroupView, setMatchGroupView] = useState<string | null>(null);
   const [matchGroupTxns, setMatchGroupTxns] = useState<any[]>([]);
+  const [autoMatchLoading, setAutoMatchLoading] = useState(false);
+  const [autoMatchResults, setAutoMatchResults] = useState<any[] | null>(null);
+  const [autoMatchStatus, setAutoMatchStatus] = useState("");
 
   const bulkAiCategorize = async () => {
     if (selectedIds.size === 0) return;
@@ -727,6 +730,59 @@ export default function Home() {
       }
     } catch (err: any) { setBeneficiaryStatus("Error: " + err.message); }
     setBeneficiaryLoading(false);
+  };
+
+  const runAutoMatch = async () => {
+    setAutoMatchLoading(true);
+    setAutoMatchStatus("Scanning for matching transactions...");
+    setAutoMatchResults(null);
+    try {
+      const res = await fetch("/api/transactions/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "auto-match", dateDays: 3, amountTolerance: 1 }),
+      });
+      const data = await res.json();
+      if (data.error) { setAutoMatchStatus("Error: " + data.error); }
+      else {
+        setAutoMatchResults(data.matches || []);
+        setAutoMatchStatus(data.message);
+      }
+    } catch (err: any) { setAutoMatchStatus("Error: " + err.message); }
+    setAutoMatchLoading(false);
+  };
+
+  const applyAutoMatch = async (outId: number, inId: number) => {
+    await fetch("/api/transactions/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "link", ids: [outId, inId] }),
+    });
+    // Remove from results
+    setAutoMatchResults(prev => prev ? prev.filter(m => m.outId !== outId || m.inId !== inId) : null);
+    loadTransactions();
+  };
+
+  const applyAllAutoMatches = async () => {
+    if (!autoMatchResults) return;
+    setAutoMatchLoading(true);
+    setAutoMatchStatus("Applying all matches...");
+    // Group by outId to avoid linking one transaction to multiple
+    const used = new Set<number>();
+    for (const m of autoMatchResults) {
+      if (used.has(m.outId) || used.has(m.inId)) continue;
+      await fetch("/api/transactions/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "link", ids: [m.outId, m.inId] }),
+      });
+      used.add(m.outId);
+      used.add(m.inId);
+    }
+    setAutoMatchResults(null);
+    setAutoMatchStatus(`Applied ${used.size / 2} matches`);
+    setAutoMatchLoading(false);
+    loadTransactions();
   };
 
   const linkSelected = async () => {
@@ -1245,14 +1301,70 @@ export default function Home() {
               );
             })()}
 
-            {/* AI Fill Beneficiaries */}
-            <div className="flex items-center gap-3 mb-4">
+            {/* AI Tools Bar */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
               <button onClick={fillBeneficiaries} disabled={beneficiaryLoading}
                 className="px-4 py-2 bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 disabled:opacity-50 rounded-xl text-sm font-medium">
                 {beneficiaryLoading ? <><span className="spinner mr-2"></span>Running...</> : "AI Fill Beneficiaries"}
               </button>
+              <button onClick={runAutoMatch} disabled={autoMatchLoading}
+                className="px-4 py-2 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 disabled:opacity-50 rounded-xl text-sm font-medium">
+                {autoMatchLoading ? <><span className="spinner mr-2"></span>Scanning...</> : "Auto-Match Transfers"}
+              </button>
               {beneficiaryStatus && <span className="text-xs text-[var(--text-muted)]">{beneficiaryStatus}</span>}
+              {autoMatchStatus && <span className="text-xs text-[var(--text-muted)]">{autoMatchStatus}</span>}
             </div>
+
+            {/* Auto-Match Results */}
+            {autoMatchResults && autoMatchResults.length > 0 && (
+              <div className="bg-white border border-blue-200 rounded-2xl shadow-sm p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-600">Potential Matches Found</h3>
+                    <p className="text-xs text-[var(--text-muted)]">{autoMatchResults.length} pairs — review and apply</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={applyAllAutoMatches} disabled={autoMatchLoading}
+                      className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 rounded-lg text-xs font-medium">
+                      Apply All ({autoMatchResults.length})
+                    </button>
+                    <button onClick={() => setAutoMatchResults(null)}
+                      className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-xs hover:bg-[var(--bg-muted)]">Dismiss</button>
+                  </div>
+                </div>
+                <div className="max-h-[350px] overflow-y-auto space-y-2">
+                  {autoMatchResults.map((m: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl text-xs">
+                      {/* Outflow side */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[var(--text-muted)]">{m.outAccount}</div>
+                        <div className="text-red-600 font-semibold tabular-nums">{fmt(m.outAmount)}</div>
+                        <div className="text-[var(--text-muted)]">{m.outDate}</div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </div>
+                      {/* Inflow side */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[var(--text-muted)]">{m.inAccount}</div>
+                        <div className="text-emerald-600 font-semibold tabular-nums">{fmt(m.inAmount)}</div>
+                        <div className="text-[var(--text-muted)]">{m.inDate}</div>
+                      </div>
+                      {/* Confidence + action */}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.confidence >= 0.8 ? "bg-emerald-50 text-emerald-600" : m.confidence >= 0.6 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"}`}>
+                        {(m.confidence * 100).toFixed(0)}%
+                      </span>
+                      <button onClick={() => applyAutoMatch(m.outId, m.inId)}
+                        className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 rounded text-[10px] font-medium flex-shrink-0">
+                        Link
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Filters */}
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4 space-y-3">
