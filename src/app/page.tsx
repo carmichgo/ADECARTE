@@ -2871,37 +2871,11 @@ export default function Home() {
                     If the verified fraudulent money had stayed invested, what would it be worth today?
                     Only transactions flagged as <span className="text-red-600 font-semibold">VERIFIED FRAUD</span> are included.
                   </p>
-                  <div className="flex items-center gap-3 mb-3">
-                    <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
-                    <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-1.5"
-                      value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}>
-                      <option value="">All Beneficiaries</option>
-                      <option value="__unset__">No Beneficiary Set</option>
-                      {(() => {
-                        const bens: string[] = [...new Set(
-                          (analyticsData?.raw_transactions || [])
-                            .filter((t: any) => t.flag === "verified_fraud")
-                            .map((t: any) => t.beneficiary || "")
-                            .filter(Boolean) as string[]
-                        )].sort();
-                        return bens.map(b => <option key={b} value={b}>{b}</option>);
-                      })()}
-                    </select>
-                    {fraudBeneficiaryFilter && <button onClick={() => setFraudBeneficiaryFilter("")} className="text-xs text-red-600 hover:underline">Clear</button>}
-                  </div>
                   {(() => {
-                    const allFraudTxns = analyticsData.fraud_transactions || [];
-                    if (allFraudTxns.length === 0) {
+                    const fraudTxns = analyticsData.fraud_transactions || [];
+                    if (fraudTxns.length === 0) {
                       return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
                     }
-
-                    // Beneficiary filter
-                    const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "").filter(Boolean) as string[])].sort();
-                    const fraudTxns = fraudBeneficiaryFilter === "__unset__"
-                      ? allFraudTxns.filter((t: any) => !t.beneficiary || t.beneficiary === "")
-                      : fraudBeneficiaryFilter
-                        ? allFraudTxns.filter((t: any) => t.beneficiary === fraudBeneficiaryFilter)
-                        : allFraudTxns;
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();

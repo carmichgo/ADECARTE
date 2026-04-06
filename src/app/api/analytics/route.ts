@@ -125,9 +125,9 @@ export async function GET(req: NextRequest) {
       category: t.category, flag: t.flag, strategy: t.strategy, beneficiary: t.beneficiary,
     }));
 
-    // ── 5. Verified fraud transactions for impact analysis (outflows only) ─
+    // ── 5. Verified fraud transactions for impact analysis ─────────
     const fraudTxns = txns
-      .filter(t => t.flag === "verified_fraud" && (t.amount || 0) < 0)
+      .filter(t => t.flag === "verified_fraud")
       .map(t => ({
         id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
         description: t.description, counterparty: t.counterparty,
