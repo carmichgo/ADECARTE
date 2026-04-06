@@ -719,6 +719,19 @@ export default function Home() {
     loadStats();
   };
 
+  const exportTransactions = (txnsToExport: Transaction[]) => {
+    const headers = ["id", "date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "bank", "ext_bank", "reference", "counterparty", "beneficiary", "symbol", "security", "strategy", "direction", "category", "subcategory", "flag", "notes", "categorized_by", "match_group"];
+    const rows = txnsToExport.map(t => headers.map(h => {
+      const val = String((t as any)[h] ?? "");
+      return val.includes(",") || val.includes('"') || val.includes("\n") ? `"${val.replace(/"/g, '""')}"` : val;
+    }).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `transactions_export_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const fillExtBanks = async () => {
     setExtBankLoading(true);
     setExtBankStatus("AI is identifying external banks...");
@@ -1344,6 +1357,18 @@ export default function Home() {
               {beneficiaryStatus && <span className="text-xs text-[var(--text-muted)]">{beneficiaryStatus}</span>}
               {extBankStatus && <span className="text-xs text-[var(--text-muted)]">{extBankStatus}</span>}
               {autoMatchStatus && <span className="text-xs text-[var(--text-muted)]">{autoMatchStatus}</span>}
+              <div className="ml-auto flex gap-2">
+                <button onClick={() => exportTransactions(transactions)}
+                  className="px-3 py-2 border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] rounded-xl text-xs font-medium">
+                  Export All ({transactions.length})
+                </button>
+                {selectedIds.size > 0 && (
+                  <button onClick={() => exportTransactions(transactions.filter(t => selectedIds.has(t.id)))}
+                    className="px-3 py-2 border border-indigo-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-medium">
+                    Export Selected ({selectedIds.size})
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Auto-Match Results */}
