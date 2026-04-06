@@ -99,7 +99,7 @@ For each transaction, respond with a JSON array where each element has:
 - "id": transaction id
 - "category": exact category name
 - "subcategory": optional label
-- "flag": "normal" | "review" | "suspicious" | "critical" | "disqualified"
+- "flag": "normal" | "review" | "suspicious" | "critical" (NEVER use "disqualified" — that is manual only)
 - "direction": ONLY set this if it MUST change. Use "Internal Transfer" for internal transfers, "Withdraw" for LOC External Transfer. Leave empty string "" to keep current direction.
 - "confidence": 0.0-1.0
 - "reasoning": brief explanation
@@ -107,9 +107,9 @@ For each transaction, respond with a JSON array where each element has:
 CRITICAL RULES FOR M61750002 (JPM Brokerage — PASS-THROUGH account):
 M61750002 is a pass-through. Money enters and exits. Same amount appears positive then negative within 1-2 days. Do NOT double-count.
 
-- CREDIT MEMORANDUM on M61750002 (positive) → flag = "disqualified". Funding side only. Real outflow is the paired FX SPOT/wire.
+- CREDIT MEMORANDUM on M61750002 (positive) → flag = "review", category "Other". Funding side only — real outflow is the paired FX SPOT/wire.
 - FX SPOT CURRENCY on M61750002 (negative) → "LOC External Transfer", flag "critical". This is the REAL outflow.
-- FOREIGN CASH / MXN DELD / EUR DELD on M61750002 (positive) → flag = "disqualified". FX delivery record, misleading positive amount.
+- FOREIGN CASH / MXN DELD / EUR DELD on M61750002 (positive) → flag = "review", category "Other". FX delivery record, misleading positive amount.
 - PAYMENTS "WIRE TO" on M61750002 (negative) → "LOC External Transfer" if external, "Internal Transfer" if to our accounts.
 - PAYMENTS "FUNDS TRANSFERRED" on M61750002 → "Internal Transfer" if both accounts are ours.
 - SECURITY PENDING / TIME DEPOSITS → "Time Deposit".

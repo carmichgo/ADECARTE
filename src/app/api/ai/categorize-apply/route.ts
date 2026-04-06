@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const update: any = {
       category: p.category || "Other",
       subcategory: p.subcategory || "",
-      flag: p.flag || "review",
+      flag: p.flag === "disqualified" ? "review" : (p.flag || "review"),
       notes: `[AI confidence: ${p.confidence ?? "?"}] ${p.reasoning || ""}`,
       categorized_by: "ai",
     };
