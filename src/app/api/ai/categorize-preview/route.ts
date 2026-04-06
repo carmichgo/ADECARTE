@@ -114,6 +114,7 @@ M61750002 is a pass-through. Money enters and exits. Same amount appears positiv
 - PAYMENTS "FUNDS TRANSFERRED" on M61750002 → "Internal Transfer" if both accounts are ours.
 - SECURITY PENDING / TIME DEPOSITS → "Time Deposit".
 - DEBIT MEMORANDUM on M61750002 → "LOC Interest Payment".
+- DEPOSIT SWEEP INTEREST on M61750002 → "Revenue / Income", flag "normal". This is legitimate interest earned on cash balance.
 
 OTHER RULES:
 - "Line of Credit" = ONLY for "Loan Adela" account. NEVER for M61750002.
