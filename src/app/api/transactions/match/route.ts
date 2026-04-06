@@ -43,9 +43,10 @@ export async function POST(req: NextRequest) {
       for (const inf of inflows) {
         // Must be different accounts
         if (out.account === inf.account) continue;
-        // Must be different banks (or at least different accounts)
+        // Must be different banks — skip same-bank matches (those are internal transfers)
         const outBank = out.bank || "";
         const inBank = inf.bank || "";
+        if (outBank === inBank && outBank !== "") continue;
 
         const inAmt = Math.abs(inf.amount);
         const inDate = new Date(inf.date);
