@@ -71,93 +71,104 @@ function traceTransaction(txns: any[], txnId: number, context?: string) {
   if (!target) return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
 
   const absAmount = Math.abs(target.amount || 0);
-  const targetDate = new Date(target.date);
-  const targetAccount = target.account || "";
-  const targetBank = target.bank || "";
+  const usedIds = new Set<number>([txnId]);
 
-  // Build the chain
-  const chain: any = {
-    source: null,
-    hub: { ...target, role: "origin" },
-    destinations: [],
+  // Find matching transaction: same absolute amount (±5%), within N days, on any account
+  const findMatch = (amount: number, date: Date, sign: "positive" | "negative" | "any", withinDays: number) => {
+    return txns.filter(t => {
+      if (usedIds.has(t.id)) return false;
+      if (t.flag === "disqualified") return false;
+      const tAmt = Math.abs(t.amount || 0);
+      if (Math.abs(tAmt - amount) > amount * 0.05) return false;
+      const daysDiff = Math.abs(new Date(t.date).getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > withinDays) return false;
+      if (sign === "positive" && (t.amount || 0) <= 0) return false;
+      if (sign === "negative" && (t.amount || 0) >= 0) return false;
+      return true;
+    }).sort((a, b) => {
+      // Prefer different account, then closest date
+      const aDiff = a.account !== target.account ? 0 : 1;
+      const bDiff = b.account !== target.account ? 0 : 1;
+      if (aDiff !== bDiff) return aDiff - bDiff;
+      return Math.abs(new Date(a.date).getTime() - date.getTime()) - Math.abs(new Date(b.date).getTime() - date.getTime());
+    });
   };
 
-  // If this is an outflow, find where the money came from
-  if ((target.amount || 0) < 0 || (target.direction || "").toLowerCase() === "withdraw") {
-    chain.hub.role = "outflow";
+  // Build chain: start from target, trace backward and forward
+  const chain: any[] = [{ ...target, step: 0, role: "start" }];
 
-    // Find matching inflow in same account (within 3 days before)
-    const inflow = txns.find(t =>
-      t.id !== txnId &&
-      t.account === targetAccount &&
-      (t.amount || 0) > 0 &&
-      Math.abs(Math.abs(t.amount) - absAmount) < absAmount * 0.05 &&
-      Math.abs(new Date(t.date).getTime() - targetDate.getTime()) < 3 * 24 * 60 * 60 * 1000 &&
-      new Date(t.date).getTime() <= targetDate.getTime()
-    );
-    if (inflow) chain.source = { ...inflow, role: "source_deposit" };
+  // TRACE FORWARD from target: follow where money went
+  // If target is negative (outflow), the next step is a positive (inflow) somewhere
+  // If target is positive (inflow), the next step is a negative (outflow) from same/diff account
+  let current = target;
+  for (let i = 0; i < 10; i++) {
+    const curDate = new Date(current.date);
+    const curAmt = Math.abs(current.amount || 0);
+    const isNeg = (current.amount || 0) < 0;
 
-    // Find the original source (different bank, same amount, before the inflow)
-    if (inflow) {
-      const original = txns.find(t =>
-        t.id !== inflow.id &&
-        t.account !== targetAccount &&
-        (t.amount || 0) < 0 &&
-        Math.abs(Math.abs(t.amount) - absAmount) < absAmount * 0.05 &&
-        Math.abs(new Date(t.date).getTime() - new Date(inflow.date).getTime()) < 5 * 24 * 60 * 60 * 1000
-      );
-      if (original) chain.source = { ...original, role: "original_source" };
+    // Money left (negative) → find where it arrived (positive, different account preferred)
+    // Money arrived (positive) → find where it left (negative, same account preferred)
+    const nextSign = isNeg ? "positive" : "negative";
+    const candidates = findMatch(curAmt, curDate, nextSign, 5);
+
+    if (candidates.length > 0) {
+      const match = candidates[0];
+      usedIds.add(match.id);
+      chain.push({ ...match, step: i + 1, role: "forward" });
+      current = match;
+    } else {
+      // For inflows, also look for split outflows (multiple smaller outflows)
+      if (!isNeg) {
+        const outflows = txns.filter(t => {
+          if (usedIds.has(t.id) || t.flag === "disqualified") return false;
+          if (t.account !== current.account) return false;
+          if ((t.amount || 0) >= 0) return false;
+          const tDate = new Date(t.date);
+          return tDate.getTime() >= curDate.getTime() && (tDate.getTime() - curDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let remaining = curAmt;
+        for (const out of outflows) {
+          if (remaining <= 0) break;
+          const outAmt = Math.abs(out.amount || 0);
+          if (outAmt <= remaining * 1.1) {
+            usedIds.add(out.id);
+            chain.push({ ...out, step: i + 1, role: "split" });
+            remaining -= outAmt;
+          }
+        }
+      }
+      break;
     }
   }
 
-  // If this is an inflow, find where the money went
-  if ((target.amount || 0) > 0 || (target.direction || "").toLowerCase() === "contribution") {
-    chain.hub.role = "inflow";
+  // TRACE BACKWARD from target: follow where money came from
+  current = target;
+  for (let i = 0; i < 10; i++) {
+    const curDate = new Date(current.date);
+    const curAmt = Math.abs(current.amount || 0);
+    const isNeg = (current.amount || 0) < 0;
 
-    // Find outflows from same account within 7 days after
-    const outflows = txns.filter(t =>
-      t.id !== txnId &&
-      t.account === targetAccount &&
-      (t.amount || 0) < 0 &&
-      t.flag !== "disqualified" &&
-      new Date(t.date).getTime() >= targetDate.getTime() &&
-      new Date(t.date).getTime() - targetDate.getTime() < 7 * 24 * 60 * 60 * 1000
-    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Money arrived (positive) → find where it came from (negative, different account preferred)
+    // Money left (negative) → find what funded it (positive, same account preferred, before this date)
+    const prevSign = isNeg ? "positive" : "negative";
+    const candidates = findMatch(curAmt, curDate, prevSign, 5)
+      .filter(t => new Date(t.date).getTime() <= curDate.getTime() + 24 * 60 * 60 * 1000); // allow 1 day after
 
-    // Find outflows that could have been funded by this deposit
-    let remaining = absAmount;
-    for (const out of outflows) {
-      if (remaining <= 0) break;
-      const outAmt = Math.abs(out.amount || 0);
-      if (outAmt <= remaining * 1.1) { // Allow 10% tolerance
-        chain.destinations.push({ ...out, role: "outflow", allocated: Math.min(outAmt, remaining) });
-        remaining -= outAmt;
-      }
-    }
-
-    // Also check if there's a matched transaction from another bank
-    if (target.match_group) {
-      const matched = txns.filter(t => t.match_group === target.match_group && t.id !== txnId);
-      if (matched.length > 0) {
-        chain.source = { ...matched[0], role: "cross_bank_source" };
-      }
-    }
-  }
-
-  // Also check match_group for the target itself
-  if (target.match_group && !chain.source) {
-    const matched = txns.filter(t => t.match_group === target.match_group && t.id !== txnId);
-    if (matched.length > 0) {
-      const match = matched[0];
-      if ((match.amount || 0) < 0) chain.source = { ...match, role: "cross_bank_source" };
-      else chain.destinations.push({ ...match, role: "cross_bank_dest" });
+    if (candidates.length > 0) {
+      const match = candidates[0];
+      usedIds.add(match.id);
+      chain.unshift({ ...match, step: -(i + 1), role: "backward" });
+      current = match;
+    } else {
+      break;
     }
   }
 
   return NextResponse.json({
     chain,
+    target_id: txnId,
     target_amount: absAmount,
-    destinations_total: chain.destinations.reduce((s: number, d: any) => s + Math.abs(d.amount || 0), 0),
-    unaccounted: absAmount - chain.destinations.reduce((s: number, d: any) => s + Math.abs(d.amount || 0), 0),
+    chain_length: chain.length,
   });
 }

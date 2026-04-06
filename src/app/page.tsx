@@ -3576,66 +3576,45 @@ export default function Home() {
             <div className="overflow-auto flex-1 p-6">
               {traceLoading ? (
                 <div className="text-center py-12"><span className="spinner"></span> Tracing flow...</div>
-              ) : traceData?.chain ? (
-                <div className="space-y-6">
-                  {/* Flow visualization */}
-                  <div className="flex items-start gap-4 overflow-x-auto pb-4">
-                    {/* Source */}
-                    {traceData.chain.source && (
-                      <>
-                        <div className="flex-shrink-0 border-2 border-blue-300 bg-blue-50 rounded-xl p-4 min-w-[220px]">
-                          <div className="text-[10px] text-blue-600 font-semibold uppercase mb-1">Source</div>
-                          <div className="text-xs text-[var(--text-muted)]">{traceData.chain.source.bank} · {traceData.chain.source.account}</div>
-                          <div className={`text-lg font-bold ${traceData.chain.source.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(traceData.chain.source.amount)}</div>
-                          <div className="text-xs text-[var(--text-muted)]">{traceData.chain.source.date}</div>
-                          <div className="text-xs mt-1 truncate max-w-[200px]" title={traceData.chain.source.description}>{traceData.chain.source.description}</div>
-                        </div>
-                        <div className="flex-shrink-0 self-center">
-                          <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Hub */}
-                    <div className="flex-shrink-0 border-2 border-amber-300 bg-amber-50 rounded-xl p-4 min-w-[220px]">
-                      <div className="text-[10px] text-amber-600 font-semibold uppercase mb-1">Hub / Pass-Through</div>
-                      <div className="text-xs text-[var(--text-muted)]">{traceData.chain.hub.bank} · {traceData.chain.hub.account}</div>
-                      <div className={`text-lg font-bold ${traceData.chain.hub.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(traceData.chain.hub.amount)}</div>
-                      <div className="text-xs text-[var(--text-muted)]">{traceData.chain.hub.date}</div>
-                      <div className="text-xs mt-1 truncate max-w-[200px]" title={traceData.chain.hub.description}>{traceData.chain.hub.description}</div>
-                    </div>
-
-                    {/* Destinations */}
-                    {traceData.chain.destinations.length > 0 && (
-                      <>
-                        <div className="flex-shrink-0 self-center">
-                          <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                        </div>
-                        <div className="space-y-2 flex-shrink-0">
-                          {traceData.chain.destinations.map((d: any, i: number) => (
-                            <div key={i} className="border-2 border-red-300 bg-red-50 rounded-xl p-3 min-w-[220px]">
-                              <div className="text-[10px] text-red-600 font-semibold uppercase mb-1">Destination {i + 1}</div>
-                              <div className="text-xs text-[var(--text-muted)]">{d.ext_bank || d.bank || "-"} · {d.counterparty || "-"}</div>
-                              <div className="text-red-600 text-lg font-bold">{fmt(d.amount)}</div>
-                              <div className="text-xs text-[var(--text-muted)]">{d.date}</div>
-                              {d.beneficiary && <div className="text-xs mt-1">Beneficiary: {d.beneficiary}</div>}
-                              <div className="text-xs mt-1 truncate max-w-[200px]" title={d.description}>{d.description}</div>
+              ) : traceData?.chain && Array.isArray(traceData.chain) && traceData.chain.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-xs text-[var(--text-muted)]">{traceData.chain_length} transactions in chain · Amount: {fmt(traceData.target_amount)}</p>
+                  {/* Linear chain visualization */}
+                  <div className="flex items-start gap-3 overflow-x-auto pb-4">
+                    {traceData.chain.map((t: any, i: number) => {
+                      const isStart = t.role === "start";
+                      const isNeg = (t.amount || 0) < 0;
+                      const borderColor = isStart ? "border-amber-400" : isNeg ? "border-red-300" : "border-emerald-300";
+                      const bgColor = isStart ? "bg-amber-50" : isNeg ? "bg-red-50" : "bg-emerald-50";
+                      const labelColor = isStart ? "text-amber-600" : isNeg ? "text-red-600" : "text-emerald-600";
+                      const stepLabel = isStart ? "YOU ARE HERE" : t.step < 0 ? `Step ${t.step}` : `Step +${t.step}`;
+                      return (
+                        <React.Fragment key={t.id}>
+                          {i > 0 && (
+                            <div className="flex-shrink-0 self-center">
+                              <svg className="w-6 h-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
                             </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                          )}
+                          <div className={`flex-shrink-0 border-2 ${borderColor} ${bgColor} rounded-xl p-4 min-w-[230px] max-w-[280px] ${isStart ? "ring-2 ring-amber-400 ring-offset-2" : ""}`}>
+                            <div className={`text-[10px] ${labelColor} font-bold uppercase mb-1`}>{stepLabel}</div>
+                            <div className="text-[10px] text-[var(--text-muted)] font-medium">{t.bank || "-"} · {t.account || "-"}</div>
+                            <div className={`text-xl font-bold mt-1 ${isNeg ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</div>
+                            <div className="text-xs text-[var(--text-muted)] mt-1">{t.date} · {t.direction || "-"}</div>
+                            <div className="text-xs mt-2 text-[var(--text)]" style={{ wordBreak: "break-word" }}>{t.description || "-"}</div>
+                            {t.counterparty && <div className="text-[10px] text-[var(--text-muted)] mt-1">Entity: {t.counterparty}</div>}
+                            {t.beneficiary && <div className="text-[10px] text-[var(--text-muted)]">Beneficiary: {t.beneficiary}</div>}
+                            {t.ext_bank && <div className="text-[10px] text-[var(--text-muted)]">Ext Bank: {t.ext_bank}</div>}
+                            <div className="text-[10px] text-[var(--text-muted)] mt-1">Category: {t.category || "-"} · <FlagBadge flag={t.flag} /></div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
-
-                  {/* Summary */}
-                  {traceData.unaccounted > 10 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs">
-                      <span className="font-semibold text-amber-600">Unaccounted: {fmt(traceData.unaccounted)}</span> — this amount could have been used for fees, FX spreads, or went to destinations not captured within the 7-day window.
-                    </div>
-                  )}
                 </div>
               ) : (
-                <p className="text-[var(--text-muted)] text-center py-8">No flow data found for this transaction.</p>
+                <p className="text-[var(--text-muted)] text-center py-8">No flow chain found for this transaction. Try tracing from the middle of a transfer chain.</p>
               )}
             </div>
           </div>
