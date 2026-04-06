@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (p.beneficiary) update.beneficiary = p.beneficiary;
     // Auto-flag known fraudulent parties as verified_fraud
     const allText = `${p.counterparty || ""} ${p.beneficiary || ""} ${update.counterparty || ""} ${update.beneficiary || ""} ${p.reasoning || ""}`.toLowerCase();
-    if ((allText.includes("aira") && allText.includes("kresch")) || allText.includes("nankin") || allText.includes("la saga")) update.flag = "verified_fraud";
+    if ((allText.includes("aira") && allText.includes("kresch")) || allText.includes("nankin") || (allText.includes("la saga") && allText.includes("evolve"))) update.flag = "verified_fraud";
     await db.from("transactions").update(update).eq("id", p.id);
     applied++;
   }
