@@ -19,7 +19,7 @@ interface Transaction {
   symbol: string; security: string; strategy: string; direction: string;
   bank: string; category: string; subcategory: string; flag: string; notes: string;
   categorized_by: string; raw_data: any; documents: any[]; fraudulent_signature: boolean | null;
-  beneficiary: string; match_group: string;
+  beneficiary: string; match_group: string; ext_bank: string;
 }
 interface Category { id: number; name: string; description: string; is_suspicious: boolean; }
 interface Stats {
@@ -58,7 +58,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "", beneficiary: "" });
+  const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "", beneficiary: "", ext_bank: "" });
   const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] as string[] });
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [sort, setSort] = useState({ field: "id", desc: true });
@@ -559,7 +559,7 @@ export default function Home() {
   // ── Edit ───
   const openEdit = async (t: Transaction) => {
     setEditTxn(t);
-    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "", amount: String(t.amount ?? ""), beneficiary: t.beneficiary || "" });
+    setEditForm({ category: t.category || "", subcategory: t.subcategory || "", flag: t.flag || "", notes: t.notes || "", direction: t.direction || "", counterparty: t.counterparty || "", bank: t.bank || "", amount: String(t.amount ?? ""), beneficiary: t.beneficiary || "", ext_bank: t.ext_bank || "" });
     setEditDocs([]);
     setDocUploadStatus("");
     setSigCompareResult(null);
@@ -691,6 +691,8 @@ export default function Home() {
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
   const [beneficiaryLoading, setBeneficiaryLoading] = useState(false);
   const [beneficiaryStatus, setBeneficiaryStatus] = useState("");
+  const [extBankLoading, setExtBankLoading] = useState(false);
+  const [extBankStatus, setExtBankStatus] = useState("");
   const [matchGroupView, setMatchGroupView] = useState<string | null>(null);
   const [matchGroupTxns, setMatchGroupTxns] = useState<any[]>([]);
   const [autoMatchLoading, setAutoMatchLoading] = useState(false);
@@ -715,6 +717,24 @@ export default function Home() {
     setBulkAiLoading(false);
     loadTransactions();
     loadStats();
+  };
+
+  const fillExtBanks = async () => {
+    setExtBankLoading(true);
+    setExtBankStatus("AI is identifying external banks...");
+    try {
+      const res = await fetch("/api/ai/extract-ext-banks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+      if (data.error) setExtBankStatus("Error: " + data.error);
+      else { setExtBankStatus(data.message); loadTransactions(); }
+    } catch (err: any) { setExtBankStatus("Error: " + err.message); }
+    setExtBankLoading(false);
   };
 
   const fillBeneficiaries = async () => {
@@ -1313,11 +1333,16 @@ export default function Home() {
                 className="px-4 py-2 bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 disabled:opacity-50 rounded-xl text-sm font-medium">
                 {beneficiaryLoading ? <><span className="spinner mr-2"></span>Running...</> : "AI Fill Beneficiaries"}
               </button>
+              <button onClick={fillExtBanks} disabled={extBankLoading}
+                className="px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 rounded-xl text-sm font-medium">
+                {extBankLoading ? <><span className="spinner mr-2"></span>Running...</> : "AI Fill Ext Banks"}
+              </button>
               <button onClick={runAutoMatch} disabled={autoMatchLoading}
                 className="px-4 py-2 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 disabled:opacity-50 rounded-xl text-sm font-medium">
                 {autoMatchLoading ? <><span className="spinner mr-2"></span>Scanning...</> : "Auto-Match Transfers"}
               </button>
               {beneficiaryStatus && <span className="text-xs text-[var(--text-muted)]">{beneficiaryStatus}</span>}
+              {extBankStatus && <span className="text-xs text-[var(--text-muted)]">{extBankStatus}</span>}
               {autoMatchStatus && <span className="text-xs text-[var(--text-muted)]">{autoMatchStatus}</span>}
             </div>
 
@@ -1586,7 +1611,7 @@ export default function Home() {
                       ["date", "Trade Date"], ["description", "Description"], ["amount", "Amount"],
                       ["settle_date", "Settle Date"], ["symbol", "Symbol"], ["security", "Security"],
                       ["direction", "Direction"], ["quantity", "Qty"], ["unit_price", "Unit Price"],
-                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Receiving Entity"], ["beneficiary", "Beneficiary"],
+                      ["account_name", "Account"], ["bank", "Bank"], ["strategy", "Strategy"], ["counterparty", "Receiving Entity"], ["beneficiary", "Beneficiary"], ["ext_bank", "Ext Bank"],
                       ["category", "Category"], ["flag", "Flag"], ["match_group", "Match"], ["fraudulent_signature", "Sig"], ["categorized_by", "Source"],
                     ] as [string, string][]).map(([f, l]) => (
                       <th key={f} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-xs uppercase tracking-wide px-3 py-2 text-left cursor-pointer hover:text-white select-none"
@@ -1636,6 +1661,7 @@ export default function Home() {
                       <td className="px-3 py-2">{t.strategy || "-"}</td>
                       <td className="px-3 py-2">{t.counterparty || "-"}</td>
                       <td className="px-3 py-2 text-[var(--text-muted)]">{t.beneficiary || "-"}</td>
+                      <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{t.ext_bank || "-"}</td>
                       <td className="px-3 py-2 text-sm">{t.category || <span className="text-[var(--text-muted)]">—</span>}</td>
                       <td className="px-3 py-2"><FlagBadge flag={t.flag} /></td>
                       <td className="px-3 py-2 text-center">
@@ -3554,6 +3580,12 @@ export default function Home() {
                 <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
                   placeholder="Person/entity that ultimately benefits (e.g. client name from REF)"
                   value={editForm.beneficiary} onChange={e => setEditForm(p => ({ ...p, beneficiary: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted)] mb-1">External Bank (receiving for withdrawals, originating for deposits)</label>
+                <input className="w-full bg-[var(--bg)] ring-1 ring-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text)]"
+                  placeholder="e.g. Wells Fargo, Banca Mifel, City National Bank..."
+                  value={editForm.ext_bank} onChange={e => setEditForm(p => ({ ...p, ext_bank: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Bank / Custodian</label>

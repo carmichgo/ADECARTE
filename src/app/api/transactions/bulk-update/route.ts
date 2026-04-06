@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   const { ids, updates } = await req.json();
 
-  const allowed = ["category", "subcategory", "flag", "notes", "direction", "beneficiary"];
+  const allowed = ["category", "subcategory", "flag", "notes", "direction", "beneficiary", "ext_bank"];
   const fields: Record<string, any> = {};
   for (const key of allowed) {
     if (key in updates) fields[key] = updates[key];
