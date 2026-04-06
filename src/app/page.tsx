@@ -172,8 +172,6 @@ export default function Home() {
     if (filters.search) q.set("search", filters.search);
     if (filters.category) q.set("category", filters.category);
     if (filters.flag) q.set("flag", filters.flag);
-    if (filters.min) q.set("min_amount", filters.min);
-    if (filters.max) q.set("max_amount", filters.max);
     if (filters.bank) q.set("bank", filters.bank);
     if (filters.account) q.set("account", filters.account);
     if (filters.direction) q.set("direction", filters.direction);
@@ -199,8 +197,11 @@ export default function Home() {
       if (va > vb) return sort.desc ? -1 : 1;
       return 0;
     });
-    // Client-side: exclude flags
-    const filtered = filters.excludeFlags.length > 0 ? rows.filter(t => !filters.excludeFlags.includes(t.flag || "")) : rows;
+    // Client-side filters: exclude flags + absolute amount range
+    let filtered = rows;
+    if (filters.excludeFlags.length > 0) filtered = filtered.filter(t => !filters.excludeFlags.includes(t.flag || ""));
+    if (filters.min) { const min = parseFloat(filters.min); filtered = filtered.filter(t => Math.abs(t.amount || 0) >= min); }
+    if (filters.max) { const max = parseFloat(filters.max); filtered = filtered.filter(t => Math.abs(t.amount || 0) <= max); }
     setTransactions(filtered);
     setSelectedIds(new Set());
   }, [filters, sort]);
