@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, description, counterparty, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
+    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, description, counterparty, beneficiary, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
 
     if (!txns || txns.length === 0) {
       return NextResponse.json({
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
       id: t.id, date: t.date, amount: t.amount, direction: t.direction,
       account: t.account || t.account_name, description: t.description,
       counterparty: t.counterparty, symbol: t.symbol, security: t.security,
-      category: t.category, flag: t.flag, strategy: t.strategy,
+      category: t.category, flag: t.flag, strategy: t.strategy, beneficiary: t.beneficiary,
     }));
 
     // ── 5. Verified fraud transactions for impact analysis (outflows only) ─
