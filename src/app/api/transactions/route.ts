@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       if (p.get("uncategorized")) query = query.or("category.eq.,category.is.null,categorized_by.eq.,categorized_by.is.null");
       if (p.get("search")) {
         const s = `%${p.get("search")}%`;
-        query = query.or(`description.ilike.${s},counterparty.ilike.${s},reference.ilike.${s},beneficiary.ilike.${s}`);
+        query = query.or(`description.ilike.${s},counterparty.ilike.${s},reference.ilike.${s},beneficiary.ilike.${s},ext_bank.ilike.${s}`);
       }
       if (p.get("min_amount")) query = query.gte("amount", parseFloat(p.get("min_amount")!));
       if (p.get("max_amount")) query = query.lte("amount", parseFloat(p.get("max_amount")!));
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       if (p.get("account")) query = query.eq("account", p.get("account")!);
       if (p.get("direction")) query = query.eq("direction", p.get("direction")!);
       if (p.get("counterparty")) query = query.ilike("counterparty", `%${p.get("counterparty")}%`);
+      if (p.get("ext_bank")) query = query.eq("ext_bank", p.get("ext_bank")!);
       if (p.get("batch")) query = query.eq("upload_batch", p.get("batch")!);
       query = query.order(orderField, { ascending: !desc });
       return query;

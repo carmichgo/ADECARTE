@@ -59,7 +59,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "", beneficiary: "", ext_bank: "" });
-  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] as string[] });
+  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] as string[], extBank: "" });
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
@@ -177,6 +177,7 @@ export default function Home() {
     if (filters.dateFrom) q.set("date_from", filters.dateFrom);
     if (filters.dateTo) q.set("date_to", filters.dateTo);
     if (filters.source) q.set("categorized_by", filters.source);
+    if (filters.extBank) q.set("ext_bank", filters.extBank);
     q.set("order", "id");
     q.set("desc", "1");
     const res = await fetch("/api/transactions?" + q.toString(), { cache: "no-store" });
@@ -1301,13 +1302,13 @@ export default function Home() {
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {transactions.length} transactions shown
                 {transactions.length >= 10000 && <span className="text-amber-600 ml-2">(limit reached — some transactions may not be shown)</span>}
-                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
+                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0 || filters.extBank) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
               </p>
             </div>
 
             {/* KPIs — computed from visible transactions */}
             {(() => {
-              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0;
+              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0 || filters.extBank;
               const active = transactions.filter(t => t.flag !== "disqualified");
               const flowTxns = active.filter(t => !isExcludedFromFlow(t));
               const deps = flowTxns.filter(t => t.amount > 0);
@@ -1429,18 +1430,18 @@ export default function Home() {
                 onKeyDown={e => { if (e.key === "Enter") loadTransactions(); }} />
               <button onClick={() => setShowFilterSidebar(true)}
                 className={`px-4 py-2.5 border rounded-lg text-sm font-medium flex items-center gap-2 ${
-                  (filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0)
+                  (filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0 || filters.extBank)
                     ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
                 }`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
                 Filters
-                {(() => { const count = [filters.category, filters.flag, filters.direction, filters.bank, filters.account, filters.counterparty, filters.source, filters.dateFrom, filters.dateTo, filters.min, filters.max].filter(Boolean).length + filters.excludeFlags.length; return count > 0 ? <span className="bg-indigo-600 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">{count}</span> : null; })()}
+                {(() => { const count = [filters.category, filters.flag, filters.direction, filters.bank, filters.account, filters.counterparty, filters.source, filters.dateFrom, filters.dateTo, filters.min, filters.max, filters.extBank].filter(Boolean).length + filters.excludeFlags.length; return count > 0 ? <span className="bg-indigo-600 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">{count}</span> : null; })()}
               </button>
               <button onClick={loadTransactions} className="px-4 py-2.5 bg-[var(--text)] text-[var(--bg)] rounded-lg text-sm font-medium hover:opacity-80">Apply</button>
-              {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0) && (
-                <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] }); }}
+              {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0 || filters.extBank) && (
+                <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [], extBank: "" }); }}
                   className="text-xs text-red-600 hover:underline">Clear</button>
               )}
             </div>
@@ -1453,7 +1454,7 @@ export default function Home() {
                   <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Filters</h3>
                     <div className="flex gap-2">
-                      <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] }); }}
+                      <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [], extBank: "" }); }}
                         className="text-xs text-red-600 hover:underline">Reset All</button>
                       <button onClick={() => setShowFilterSidebar(false)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg">&times;</button>
                     </div>
@@ -1535,6 +1536,14 @@ export default function Home() {
                         <option value="">All</option>
                         {allCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
+                    </div>
+
+                    {/* External Bank */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">External Bank</label>
+                      <input className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        placeholder="e.g. Wells Fargo, Banca Mifel..."
+                        value={filters.extBank} onChange={e => setFilters(p => ({ ...p, extBank: e.target.value }))} />
                     </div>
 
                     {/* Source */}
