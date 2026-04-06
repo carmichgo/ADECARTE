@@ -136,6 +136,7 @@ export default function Home() {
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
   const [clusterFlagFilter, setClusterFlagFilter] = useState<string>("all");
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
+  const [fraudBeneficiaryFilter, setFraudBeneficiaryFilter] = useState("");
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
       try { return JSON.parse(localStorage.getItem("adecarte_strategy_yields") || "{}"); } catch { return {}; }
@@ -2866,11 +2867,27 @@ export default function Home() {
                     If the verified fraudulent money had stayed invested, what would it be worth today?
                     Only transactions flagged as <span className="text-red-600 font-semibold">VERIFIED FRAUD</span> are included.
                   </p>
+                  <div className="flex items-center gap-3 mb-3">
+                    <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                    <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-1.5"
+                      value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}>
+                      <option value="">All Beneficiaries</option>
+                      {(() => {
+                        const bens: string[] = [...new Set((analyticsData?.fraud_transactions || []).map((t: any) => t.beneficiary || "").filter(Boolean) as string[])].sort();
+                        return bens.map(b => <option key={b} value={b}>{b}</option>);
+                      })()}
+                    </select>
+                    {fraudBeneficiaryFilter && <button onClick={() => setFraudBeneficiaryFilter("")} className="text-xs text-red-600 hover:underline">Clear</button>}
+                  </div>
                   {(() => {
-                    const fraudTxns = analyticsData.fraud_transactions || [];
-                    if (fraudTxns.length === 0) {
+                    const allFraudTxns = analyticsData.fraud_transactions || [];
+                    if (allFraudTxns.length === 0) {
                       return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
                     }
+
+                    // Beneficiary filter
+                    const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "").filter(Boolean) as string[])].sort();
+                    const fraudTxns = fraudBeneficiaryFilter ? allFraudTxns.filter((t: any) => t.beneficiary === fraudBeneficiaryFilter) : allFraudTxns;
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
@@ -3011,7 +3028,7 @@ export default function Home() {
                         <div className="mt-4 overflow-x-auto">
                           <table className="w-full text-xs border border-[var(--border)] rounded-2xl">
                             <thead><tr>
-                              {["Date", "Description", "Receiving Entity", "Account", "Strategy", "Rate", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
+                              {["Date", "Description", "Receiving Entity", "Beneficiary", "Account", "Strategy", "Rate", "Amount Stolen", "Days Ago", "Present Value", "Lost Growth"].map(h => (
                                 <th key={h} className="bg-[var(--bg-muted)] text-[var(--text-muted)] text-[10px] uppercase px-2 py-1.5 text-left">{h}</th>
                               ))}
                             </tr></thead>
@@ -3021,6 +3038,7 @@ export default function Home() {
                                   <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
                                   <td className="px-2 py-1.5 max-w-[150px] truncate">{t.description || "-"}</td>
                                   <td className="px-2 py-1.5">{t.counterparty || "-"}</td>
+                                  <td className="px-2 py-1.5">{t.beneficiary || "-"}</td>
                                   <td className="px-2 py-1.5">{t.account || "-"}</td>
                                   <td className="px-2 py-1.5">{t.strategy || "-"}</td>
                                   <td className="px-2 py-1.5 tabular-nums">{t.usedRate?.toFixed(1)}%</td>
@@ -3031,7 +3049,7 @@ export default function Home() {
                                 </tr>
                               ))}
                               <tr className="border-t-2 border-red-200 font-bold">
-                                <td className="px-2 py-2" colSpan={6}>TOTAL FRAUD IMPACT</td>
+                                <td className="px-2 py-2" colSpan={7}>TOTAL FRAUD IMPACT</td>
                                 <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalStolen)}</td>
                                 <td className="px-2 py-2"></td>
                                 <td className="px-2 py-2 text-red-600 tabular-nums">{fmt(totalPV)}</td>
