@@ -59,7 +59,8 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editForm, setEditForm] = useState({ category: "", subcategory: "", flag: "", notes: "", direction: "", counterparty: "", bank: "", amount: "", beneficiary: "" });
-  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "" });
+  const [filters, setFilters] = useState({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] as string[] });
+  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [sort, setSort] = useState({ field: "id", desc: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -191,7 +192,9 @@ export default function Home() {
       if (va > vb) return sort.desc ? -1 : 1;
       return 0;
     });
-    setTransactions(rows);
+    // Client-side: exclude flags
+    const filtered = filters.excludeFlags.length > 0 ? rows.filter(t => !filters.excludeFlags.includes(t.flag || "")) : rows;
+    setTransactions(filtered);
     setSelectedIds(new Set());
   }, [filters, sort]);
 
@@ -1262,13 +1265,13 @@ export default function Home() {
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {transactions.length} transactions shown
                 {transactions.length >= 10000 && <span className="text-amber-600 ml-2">(limit reached — some transactions may not be shown)</span>}
-                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
+                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0) && <span className="ml-2">(filtered — KPIs reflect filtered results only)</span>}
               </p>
             </div>
 
             {/* KPIs — computed from visible transactions */}
             {(() => {
-              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source;
+              const hasFilters = filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0;
               const active = transactions.filter(t => t.flag !== "disqualified");
               const flowTxns = active.filter(t => !isExcludedFromFlow(t));
               const deps = flowTxns.filter(t => t.amount > 0);
@@ -1366,82 +1369,171 @@ export default function Home() {
               </div>
             )}
 
-            {/* Filters */}
-            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-4 mb-4 space-y-3">
-              {/* Row 1: Primary filters */}
-              <div className="flex flex-wrap gap-2 items-center">
-                <input placeholder="Search descriptions, receiving entities, beneficiaries..." className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]"
-                  value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
-                  onKeyDown={e => { if (e.key === "Enter") loadTransactions(); }} />
-                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                  value={filters.category} onChange={e => setFilters(p => ({ ...p, category: e.target.value }))}>
-                  <option value="">All Categories</option>
-                  {categories.map(c => <option key={c.id} value={c.name}>{c.is_suspicious ? "⚠ " : ""}{c.name}</option>)}
-                </select>
-                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                  value={filters.flag} onChange={e => setFilters(p => ({ ...p, flag: e.target.value }))}>
-                  <option value="">All Flags</option>
-                  {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f === "verified_fraud" ? "Verified Fraud" : f === "disqualified" ? "Disqualified" : f}</option>)}
-                </select>
-                <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                  value={filters.direction} onChange={e => setFilters(p => ({ ...p, direction: e.target.value }))}>
-                  <option value="">All Directions</option>
-                  <option value="Contribution">Contribution</option>
-                  <option value="Withdraw">Withdraw</option>
-                  <option value="Internal Transfer">Internal Transfer</option>
-                </select>
-                <button onClick={() => setShowAdvFilters(!showAdvFilters)}
-                  className="px-3 py-2 text-xs border border-[var(--border)] rounded-lg hover:bg-[var(--bg-muted)] text-[var(--text-secondary)]">
-                  {showAdvFilters ? "Less" : "More"} Filters
-                </button>
-                <button onClick={loadTransactions} className="px-4 py-2 bg-[var(--text)] text-[var(--bg)] rounded-lg text-sm font-medium hover:opacity-80">Filter</button>
-                {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source) && (
-                  <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "" }); }}
-                    className="px-3 py-2 text-xs text-red-600 hover:underline">Clear all</button>
-                )}
-              </div>
-
-              {/* Row 2: Advanced filters */}
-              {showAdvFilters && (
-                <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-[var(--border-subtle)]">
-                  <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                    value={filters.bank} onChange={e => setFilters(p => ({ ...p, bank: e.target.value }))}>
-                    <option value="">All Banks</option>
-                    {allBanks.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                  <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                    value={filters.account} onChange={e => setFilters(p => ({ ...p, account: e.target.value }))}>
-                    <option value="">All Accounts</option>
-                    {allAccounts.map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                  <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                    value={filters.counterparty} onChange={e => setFilters(p => ({ ...p, counterparty: e.target.value }))}>
-                    <option value="">All Receiving Entities</option>
-                    {allCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
-                    value={filters.source} onChange={e => setFilters(p => ({ ...p, source: e.target.value }))}>
-                    <option value="">All Sources</option>
-                    <option value="manual">Manual</option>
-                    <option value="ai">AI</option>
-                  </select>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-[var(--text-muted)]">From</span>
-                    <input type="date" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-2 py-1.5"
-                      value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))} />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-[var(--text-muted)]">To</span>
-                    <input type="date" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-2 py-1.5"
-                      value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} />
-                  </div>
-                  <input type="number" placeholder="Min $" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 w-24"
-                    value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
-                  <input type="number" placeholder="Max $" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2 w-24"
-                    value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
-                </div>
+            {/* Search + Filter Button */}
+            <div className="flex gap-2 mb-4 items-center">
+              <input placeholder="Search descriptions, receiving entities, beneficiaries..." className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2.5 flex-1"
+                value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
+                onKeyDown={e => { if (e.key === "Enter") loadTransactions(); }} />
+              <button onClick={() => setShowFilterSidebar(true)}
+                className={`px-4 py-2.5 border rounded-lg text-sm font-medium flex items-center gap-2 ${
+                  (filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0)
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
+                }`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters
+                {(() => { const count = [filters.category, filters.flag, filters.direction, filters.bank, filters.account, filters.counterparty, filters.source, filters.dateFrom, filters.dateTo, filters.min, filters.max].filter(Boolean).length + filters.excludeFlags.length; return count > 0 ? <span className="bg-indigo-600 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">{count}</span> : null; })()}
+              </button>
+              <button onClick={loadTransactions} className="px-4 py-2.5 bg-[var(--text)] text-[var(--bg)] rounded-lg text-sm font-medium hover:opacity-80">Apply</button>
+              {(filters.search || filters.category || filters.flag || filters.min || filters.max || filters.bank || filters.account || filters.direction || filters.counterparty || filters.dateFrom || filters.dateTo || filters.source || filters.excludeFlags.length > 0) && (
+                <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] }); }}
+                  className="text-xs text-red-600 hover:underline">Clear</button>
               )}
             </div>
+
+            {/* Filter Sidebar */}
+            {showFilterSidebar && (
+              <div className="fixed inset-0 z-50 flex">
+                <div className="absolute inset-0 bg-black/20" onClick={() => setShowFilterSidebar(false)} />
+                <div className="absolute right-0 top-0 h-full w-[380px] bg-white border-l border-[var(--border)] shadow-xl flex flex-col">
+                  <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Filters</h3>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setFilters({ search: "", category: "", flag: "", min: "", max: "", bank: "", account: "", direction: "", counterparty: "", dateFrom: "", dateTo: "", source: "", excludeFlags: [] }); }}
+                        className="text-xs text-red-600 hover:underline">Reset All</button>
+                      <button onClick={() => setShowFilterSidebar(false)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg">&times;</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+                    {/* Exclude Flags (checkboxes) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Hide Flags</label>
+                      <div className="space-y-1.5">
+                        {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => (
+                          <label key={f} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-muted)] px-2 py-1 rounded">
+                            <input type="checkbox" checked={filters.excludeFlags.includes(f)}
+                              onChange={e => setFilters(p => ({ ...p, excludeFlags: e.target.checked ? [...p.excludeFlags, f] : p.excludeFlags.filter(x => x !== f) }))} />
+                            <FlagBadge flag={f} />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Show Only Flag */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Show Only Flag</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.flag} onChange={e => setFilters(p => ({ ...p, flag: e.target.value }))}>
+                        <option value="">All</option>
+                        {["normal", "review", "suspicious", "critical", "verified_fraud", "disqualified"].map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Direction */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Direction</label>
+                      <div className="space-y-1.5">
+                        {[["", "All"], ["Contribution", "Contribution"], ["Withdraw", "Withdraw"], ["Internal Transfer", "Internal Transfer"]].map(([val, label]) => (
+                          <label key={val} className={`flex items-center gap-2 text-sm cursor-pointer px-2 py-1 rounded ${filters.direction === val ? "bg-indigo-50 text-indigo-600" : "hover:bg-[var(--bg-muted)]"}`}>
+                            <input type="radio" name="dir" checked={filters.direction === val} onChange={() => setFilters(p => ({ ...p, direction: val }))} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Category</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.category} onChange={e => setFilters(p => ({ ...p, category: e.target.value }))}>
+                        <option value="">All Categories</option>
+                        {categories.map(c => <option key={c.id} value={c.name}>{c.is_suspicious ? "⚠ " : ""}{c.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Bank */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Bank</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.bank} onChange={e => setFilters(p => ({ ...p, bank: e.target.value }))}>
+                        <option value="">All Banks</option>
+                        {allBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Account */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Account</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.account} onChange={e => setFilters(p => ({ ...p, account: e.target.value }))}>
+                        <option value="">All Accounts</option>
+                        {allAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Receiving Entity */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Receiving Entity</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.counterparty} onChange={e => setFilters(p => ({ ...p, counterparty: e.target.value }))}>
+                        <option value="">All</option>
+                        {allCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Source */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Categorized By</label>
+                      <select className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                        value={filters.source} onChange={e => setFilters(p => ({ ...p, source: e.target.value }))}>
+                        <option value="">All</option>
+                        <option value="manual">Manual</option>
+                        <option value="ai">AI</option>
+                      </select>
+                    </div>
+
+                    {/* Date Range */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Date Range</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-[var(--text-muted)]">From</label>
+                          <input type="date" className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-2 py-2"
+                            value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-[var(--text-muted)]">To</label>
+                          <input type="date" className="w-full bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-2 py-2"
+                            value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Amount Range */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--text)] mb-2">Amount Range</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="number" placeholder="Min $" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                          value={filters.min} onChange={e => setFilters(p => ({ ...p, min: e.target.value }))} />
+                        <input type="number" placeholder="Max $" className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-2"
+                          value={filters.max} onChange={e => setFilters(p => ({ ...p, max: e.target.value }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Apply button */}
+                  <div className="p-4 border-t border-[var(--border)]">
+                    <button onClick={() => { loadTransactions(); setShowFilterSidebar(false); }}
+                      className="w-full px-4 py-2.5 bg-[var(--text)] text-[var(--bg)] rounded-lg text-sm font-semibold hover:opacity-80">
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedIds.size > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-3 p-3 bg-[var(--bg-card)] border border-indigo-500 rounded-lg sticky top-0 z-10">
                 <span className="text-sm font-semibold">{selectedIds.size} selected</span>
