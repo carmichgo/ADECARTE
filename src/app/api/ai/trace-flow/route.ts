@@ -116,6 +116,26 @@ function traceTransaction(txns: any[], txnId: number, context?: string) {
       usedIds.add(match.id);
       chain.push({ ...match, step: i + 1, role: "forward" });
       current = match;
+
+      // Special: if this is an FX SPOT, find the paired FOREIGN CASH (even if disqualified)
+      // to show the final recipient
+      const desc = (match.description || "").toUpperCase();
+      if (desc.includes("SPOT CURRENCY") || desc.includes("FX SPOT")) {
+        const fxDate = new Date(match.date);
+        const foreignCash = txns.find(t =>
+          !usedIds.has(t.id) &&
+          t.account === match.account &&
+          (t.amount || 0) > 0 &&
+          Math.abs(new Date(t.date).getTime() - fxDate.getTime()) < 2 * 24 * 60 * 60 * 1000 &&
+          ((t.description || "").toUpperCase().includes("MXN DELD") ||
+           (t.description || "").toUpperCase().includes("EUR DELD") ||
+           (t.description || "").toUpperCase().includes("FOREIGN CASH"))
+        );
+        if (foreignCash) {
+          usedIds.add(foreignCash.id);
+          chain.push({ ...foreignCash, step: i + 1.5, role: "fx_delivery", note: "FX delivery — shows final recipient of converted currency" });
+        }
+      }
     } else {
       // For inflows, also look for split outflows (multiple smaller outflows)
       if (!isNeg) {
