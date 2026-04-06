@@ -112,6 +112,10 @@ export default function Home() {
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
   const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools" | "flow">("overview");
+  const [traceData, setTraceData] = useState<any>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [sankeyData, setSankeyData] = useState<any>(null);
+  const [sankeyLoading, setSankeyLoading] = useState(false);
   const [flowData, setFlowData] = useState<any>(null);
   const [flowLoading, setFlowLoading] = useState(false);
   const [aiFlowLoading, setAiFlowLoading] = useState(false);
@@ -823,6 +827,31 @@ export default function Home() {
     setAutoMatchStatus(`Applied ${used.size / 2} matches`);
     setAutoMatchLoading(false);
     loadTransactions();
+  };
+
+  const traceFlow = async (txnId: number) => {
+    setTraceLoading(true);
+    setTraceData(null);
+    try {
+      const res = await fetch("/api/ai/trace-flow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionId: txnId, mode: "trace", context: investigationContext }),
+      });
+      setTraceData(await res.json());
+    } catch {}
+    setTraceLoading(false);
+  };
+
+  const loadSankey = async () => {
+    setSankeyLoading(true);
+    try {
+      const res = await fetch("/api/ai/trace-flow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "sankey" }),
+      });
+      setSankeyData(await res.json());
+    } catch {}
+    setSankeyLoading(false);
   };
 
   const linkSelected = async () => {
@@ -1711,9 +1740,14 @@ export default function Home() {
                       <td className="px-3 py-2 text-center flex gap-1 justify-center">
                         <button onClick={() => openEdit(t)} className="px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--bg-muted)]">Edit</button>
                         <button onClick={() => aiCategorizeSingle(t.id)} disabled={aiCategorizingIds.has(t.id)}
-                          className="px-2 py-1 text-xs border border-amber-500/40 text-amber-600 rounded hover:bg-amber-50 disabled:opacity-50"
-                          title="AI categorize this transaction">
+                          className="px-2 py-1 text-xs border border-amber-200 text-amber-600 rounded hover:bg-amber-50 disabled:opacity-50"
+                          title="AI categorize">
                           {aiCategorizingIds.has(t.id) ? <span className="spinner" style={{width:12,height:12,borderWidth:1.5}}></span> : "AI"}
+                        </button>
+                        <button onClick={() => traceFlow(t.id)}
+                          className="px-2 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+                          title="Trace money flow">
+                          Trace
                         </button>
                       </td>
                     </tr>
@@ -2191,6 +2225,7 @@ export default function Home() {
                 ["counterparties", "Receiving Entities"],
                 ["flow", "Money Flow"],
                 ["fraud", "Fraud Impact"],
+                ["flow", "Money Flow"],
                 ["tools", "AI Tools"],
               ] as [typeof analyticsTab, string][]).map(([key, label]) => (
                 <button key={key} onClick={() => setAnalyticsTab(key)}
@@ -2242,6 +2277,93 @@ export default function Home() {
             </>)}
 
             {/* === Tools Tab === */}
+            {/* === Money Flow Tab === */}
+            {analyticsTab === "flow" && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">Money Flow Map</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Visualize how money moved between accounts and to external destinations</p>
+                  </div>
+                  <button onClick={loadSankey} disabled={sankeyLoading}
+                    className="px-4 py-2 bg-[var(--text)] text-[var(--bg)] rounded-xl text-sm font-medium hover:opacity-80 disabled:opacity-50">
+                    {sankeyLoading ? <><span className="spinner mr-2"></span>Loading...</> : "Generate Flow Map"}
+                  </button>
+                </div>
+
+                {sankeyData && sankeyData.flows && (
+                  <div className="space-y-4">
+                    {/* Flow summary cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase font-medium">Total Flows</div>
+                        <div className="text-xl font-bold">{sankeyData.total_flows}</div>
+                      </div>
+                      <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase font-medium">Unique Entities</div>
+                        <div className="text-xl font-bold">{sankeyData.nodes?.length || 0}</div>
+                      </div>
+                      <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase font-medium">Total Amount</div>
+                        <div className="text-xl font-bold text-red-600">{fmt(sankeyData.flows.reduce((s: number, f: any) => s + f.amount, 0))}</div>
+                      </div>
+                    </div>
+
+                    {/* Sankey-style flow visualization */}
+                    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5">
+                      <h4 className="text-sm font-semibold mb-4">Top Money Flows</h4>
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                        {sankeyData.flows.map((f: any, i: number) => {
+                          const maxAmount = sankeyData.flows[0]?.amount || 1;
+                          const widthPct = Math.max(5, (f.amount / maxAmount) * 100);
+                          return (
+                            <div key={i} className="flex items-center gap-3 text-xs">
+                              <div className="w-[180px] text-right truncate font-medium" title={f.from}>{f.from}</div>
+                              <div className="flex-1 relative h-7 bg-[var(--bg-muted)] rounded-full overflow-hidden">
+                                <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 to-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold px-2"
+                                  style={{ width: `${widthPct}%`, minWidth: "80px" }}>
+                                  {fmt(f.amount)} ({f.count})
+                                </div>
+                              </div>
+                              <div className="w-[180px] truncate" title={f.to}>{f.to}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Flow detail table */}
+                    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-[var(--bg-muted)]">
+                          <th className="px-3 py-2 text-left text-[var(--text-muted)]">From</th>
+                          <th className="px-3 py-2 text-left text-[var(--text-muted)]">To</th>
+                          <th className="px-3 py-2 text-right text-[var(--text-muted)]">Amount</th>
+                          <th className="px-3 py-2 text-right text-[var(--text-muted)]"># Txns</th>
+                        </tr></thead>
+                        <tbody>
+                          {sankeyData.flows.map((f: any, i: number) => (
+                            <tr key={i} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                              <td className="px-3 py-2 font-medium">{f.from}</td>
+                              <td className="px-3 py-2">{f.to}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-red-600 font-semibold">{fmt(f.amount)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{f.count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {!sankeyData && !sankeyLoading && (
+                  <div className="text-center py-12 text-[var(--text-muted)]">
+                    Click "Generate Flow Map" to visualize money flows between accounts and external destinations.
+                  </div>
+                )}
+              </div>
+            )}
+
             {analyticsTab === "tools" && (<>
             <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between">
@@ -3437,6 +3559,87 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Trace Flow Modal */}
+      {(traceData || traceLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => { setTraceData(null); setTraceLoading(false); }} />
+          <div className="relative bg-white border border-[var(--border)] rounded-2xl shadow-xl w-[900px] max-w-[95vw] max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold">Money Flow Trace</h3>
+                {traceData && <p className="text-xs text-[var(--text-muted)]">Amount: {fmt(traceData.target_amount)} | Traced to destinations: {fmt(traceData.destinations_total)} | Unaccounted: {fmt(traceData.unaccounted)}</p>}
+              </div>
+              <button onClick={() => { setTraceData(null); setTraceLoading(false); }} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg">&times;</button>
+            </div>
+            <div className="overflow-auto flex-1 p-6">
+              {traceLoading ? (
+                <div className="text-center py-12"><span className="spinner"></span> Tracing flow...</div>
+              ) : traceData?.chain ? (
+                <div className="space-y-6">
+                  {/* Flow visualization */}
+                  <div className="flex items-start gap-4 overflow-x-auto pb-4">
+                    {/* Source */}
+                    {traceData.chain.source && (
+                      <>
+                        <div className="flex-shrink-0 border-2 border-blue-300 bg-blue-50 rounded-xl p-4 min-w-[220px]">
+                          <div className="text-[10px] text-blue-600 font-semibold uppercase mb-1">Source</div>
+                          <div className="text-xs text-[var(--text-muted)]">{traceData.chain.source.bank} · {traceData.chain.source.account}</div>
+                          <div className={`text-lg font-bold ${traceData.chain.source.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(traceData.chain.source.amount)}</div>
+                          <div className="text-xs text-[var(--text-muted)]">{traceData.chain.source.date}</div>
+                          <div className="text-xs mt-1 truncate max-w-[200px]" title={traceData.chain.source.description}>{traceData.chain.source.description}</div>
+                        </div>
+                        <div className="flex-shrink-0 self-center">
+                          <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Hub */}
+                    <div className="flex-shrink-0 border-2 border-amber-300 bg-amber-50 rounded-xl p-4 min-w-[220px]">
+                      <div className="text-[10px] text-amber-600 font-semibold uppercase mb-1">Hub / Pass-Through</div>
+                      <div className="text-xs text-[var(--text-muted)]">{traceData.chain.hub.bank} · {traceData.chain.hub.account}</div>
+                      <div className={`text-lg font-bold ${traceData.chain.hub.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(traceData.chain.hub.amount)}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{traceData.chain.hub.date}</div>
+                      <div className="text-xs mt-1 truncate max-w-[200px]" title={traceData.chain.hub.description}>{traceData.chain.hub.description}</div>
+                    </div>
+
+                    {/* Destinations */}
+                    {traceData.chain.destinations.length > 0 && (
+                      <>
+                        <div className="flex-shrink-0 self-center">
+                          <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                        </div>
+                        <div className="space-y-2 flex-shrink-0">
+                          {traceData.chain.destinations.map((d: any, i: number) => (
+                            <div key={i} className="border-2 border-red-300 bg-red-50 rounded-xl p-3 min-w-[220px]">
+                              <div className="text-[10px] text-red-600 font-semibold uppercase mb-1">Destination {i + 1}</div>
+                              <div className="text-xs text-[var(--text-muted)]">{d.ext_bank || d.bank || "-"} · {d.counterparty || "-"}</div>
+                              <div className="text-red-600 text-lg font-bold">{fmt(d.amount)}</div>
+                              <div className="text-xs text-[var(--text-muted)]">{d.date}</div>
+                              {d.beneficiary && <div className="text-xs mt-1">Beneficiary: {d.beneficiary}</div>}
+                              <div className="text-xs mt-1 truncate max-w-[200px]" title={d.description}>{d.description}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  {traceData.unaccounted > 10 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs">
+                      <span className="font-semibold text-amber-600">Unaccounted: {fmt(traceData.unaccounted)}</span> — this amount could have been used for fees, FX spreads, or went to destinations not captured within the 7-day window.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[var(--text-muted)] text-center py-8">No flow data found for this transaction.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Match Group Modal */}
       {matchGroupView && matchGroupTxns.length > 0 && (
