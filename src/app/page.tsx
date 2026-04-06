@@ -2876,6 +2876,7 @@ export default function Home() {
                     <select className="bg-[var(--bg-page)] border border-[var(--border)] text-sm rounded-lg px-3 py-1.5"
                       value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}>
                       <option value="">All Beneficiaries</option>
+                      <option value="__unset__">No Beneficiary Set</option>
                       {(() => {
                         const bens: string[] = [...new Set(
                           (analyticsData?.raw_transactions || [])
@@ -2896,7 +2897,11 @@ export default function Home() {
 
                     // Beneficiary filter
                     const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "").filter(Boolean) as string[])].sort();
-                    const fraudTxns = fraudBeneficiaryFilter ? allFraudTxns.filter((t: any) => t.beneficiary === fraudBeneficiaryFilter) : allFraudTxns;
+                    const fraudTxns = fraudBeneficiaryFilter === "__unset__"
+                      ? allFraudTxns.filter((t: any) => !t.beneficiary || t.beneficiary === "")
+                      : fraudBeneficiaryFilter
+                        ? allFraudTxns.filter((t: any) => t.beneficiary === fraudBeneficiaryFilter)
+                        : allFraudTxns;
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
