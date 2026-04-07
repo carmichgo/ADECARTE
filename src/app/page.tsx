@@ -3308,80 +3308,89 @@ export default function Home() {
                 {/* === Present Value Tab === */}
                 {analyticsTab === "pv" && (<>
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
-                  <h3 className="font-semibold mb-1">Present Value Analysis — All Withdrawals</h3>
+                  <h3 className="font-semibold mb-1">Present Value Analysis</h3>
                   <p className="text-xs text-[var(--text-muted)] mb-3">
-                    If money that left the accounts had stayed invested, what would it be worth today?
-                    Includes all withdrawals (fraud and non-fraud). Use filters to analyze specific segments.
+                    What would the account balances be worth today if all money had been invested at a given return rate?
+                    Each deposit is compounded from its date to today. Withdrawals reduce the compounded balance.
                   </p>
                   {(() => {
-                    const allWithdrawals = analyticsData.all_withdrawals || [];
-                    if (allWithdrawals.length === 0) {
-                      return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No withdrawal transactions found.</p>;
+                    const allPvTxns = analyticsData.pv_transactions || [];
+                    if (allPvTxns.length === 0) {
+                      return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No transactions found.</p>;
                     }
-                    const pvBanks: string[] = [...new Set(allWithdrawals.map((t: any) => t.bank || "Unknown") as string[])].sort();
-                    const pvBeneficiariesList: string[] = [...new Set(allWithdrawals.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
-                    const pvFlags: string[] = [...new Set(allWithdrawals.map((t: any) => t.flag || "normal") as string[])].sort();
-                    const pvTxns = allWithdrawals
+                    const pvBanks: string[] = [...new Set(allPvTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
+                    const pvAccounts: string[] = [...new Set(allPvTxns.map((t: any) => t.account || "Unknown") as string[])].sort();
+                    const pvTxns = allPvTxns
                       .filter((t: any) => pvBankFilter === "all" || (t.bank || "Unknown") === pvBankFilter)
-                      .filter((t: any) => pvBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === pvBeneficiaryFilter)
-                      .filter((t: any) => pvFlagFilter === "all" || (t.flag || "normal") === pvFlagFilter);
-
-                    if (pvTxns.length === 0) {
-                      return (<>
-                        <div className="flex items-center gap-3 mb-3 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs text-[var(--text-muted)]">Bank:</label>
-                            <select value={pvBankFilter} onChange={e => setPvBankFilter(e.target.value)}
-                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
-                              <option value="all">All Banks</option>
-                              {pvBanks.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
-                            <select value={pvBeneficiaryFilter} onChange={e => setPvBeneficiaryFilter(e.target.value)}
-                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
-                              <option value="">All Beneficiaries</option>
-                              {pvBeneficiariesList.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs text-[var(--text-muted)]">Flag:</label>
-                            <select value={pvFlagFilter} onChange={e => setPvFlagFilter(e.target.value)}
-                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
-                              <option value="all">All Flags</option>
-                              {pvFlags.map(f => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <p className="text-[var(--text-muted)] text-sm py-4 text-center">No transactions match the current filters.</p>
-                      </>);
-                    }
+                      .filter((t: any) => pvFlagFilter === "all" || pvFlagFilter === "" || (t.account || "Unknown") === pvFlagFilter);
 
                     const today = new Date();
                     const rate = pvReturnRate / 100;
-                    const pvWithCalc = pvTxns.map((t: any) => {
+                    const DAY_MS = 86400000;
+
+                    // Simulate investment account: balance compounds daily
+                    // Deposits add to balance, withdrawals remove from balance (stop compounding that portion)
+                    const sortedTxns = [...pvTxns].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    let balance = 0; // running actual balance
+                    let investedBalance = 0; // what balance would be if invested
+                    let lastDate = sortedTxns.length > 0 ? new Date(sortedTxns[0].date) : today;
+                    const totalDeposits = sortedTxns.filter((t: any) => t.amount > 0).reduce((s: number, t: any) => s + t.amount, 0);
+                    const totalWithdrawals = sortedTxns.filter((t: any) => t.amount < 0).reduce((s: number, t: any) => s + Math.abs(t.amount), 0);
+                    const netDeposited = totalDeposits - totalWithdrawals;
+
+                    // Walk through transactions chronologically, compounding between events
+                    const events: Array<{ date: string; balance: number; invested: number }> = [];
+                    for (const t of sortedTxns) {
                       const txnDate = new Date(t.date);
-                      const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const presentValue = t.amount * Math.pow(1 + rate, days / 365);
-                      const growth = presentValue - t.amount;
-                      return { ...t, days: Math.round(days), presentValue, growth };
-                    });
+                      // Compound the invested balance from lastDate to this transaction date
+                      const daysBetween = Math.max(0, (txnDate.getTime() - lastDate.getTime()) / DAY_MS);
+                      if (daysBetween > 0 && investedBalance > 0) {
+                        investedBalance *= Math.pow(1 + rate, daysBetween / 365);
+                      }
+                      // Apply transaction
+                      balance += t.amount;
+                      if (t.amount > 0) {
+                        investedBalance += t.amount; // deposit: add to invested
+                      } else {
+                        // Withdrawal: remove from invested (proportional — can't go below 0)
+                        investedBalance = Math.max(0, investedBalance + t.amount);
+                      }
+                      lastDate = txnDate;
+                      events.push({ date: t.date, balance, invested: investedBalance });
+                    }
+                    // Compound from last transaction to today
+                    const finalDays = Math.max(0, (today.getTime() - lastDate.getTime()) / DAY_MS);
+                    if (finalDays > 0 && investedBalance > 0) {
+                      investedBalance *= Math.pow(1 + rate, finalDays / 365);
+                    }
+                    const totalCompounded = investedBalance;
+                    const totalGrowth = totalCompounded - netDeposited;
 
-                    const totalAmount = pvWithCalc.reduce((s: number, t: any) => s + t.amount, 0);
-                    const totalPV = pvWithCalc.reduce((s: number, t: any) => s + t.presentValue, 0);
-                    const totalGrowth = totalPV - totalAmount;
-
-                    // Group by beneficiary for summary
-                    const byBeneficiary: Record<string, { amount: number; pv: number; count: number }> = {};
-                    pvWithCalc.forEach((t: any) => {
-                      const key = t.beneficiary || "Unknown";
-                      if (!byBeneficiary[key]) byBeneficiary[key] = { amount: 0, pv: 0, count: 0 };
-                      byBeneficiary[key].amount += t.amount;
-                      byBeneficiary[key].pv += t.presentValue;
-                      byBeneficiary[key].count++;
+                    // Group by account — simulate per account
+                    const acctTxns: Record<string, any[]> = {};
+                    sortedTxns.forEach((t: any) => {
+                      const key = `${t.account} (${t.bank})`;
+                      if (!acctTxns[key]) acctTxns[key] = [];
+                      acctTxns[key].push(t);
                     });
-                    const sortedBeneficiaries = Object.entries(byBeneficiary).sort((a, b) => b[1].pv - a[1].pv);
+                    const byAccount: Record<string, { deposited: number; withdrawn: number; compounded: number; count: number }> = {};
+                    for (const [key, txns] of Object.entries(acctTxns)) {
+                      let aBal = 0, aInv = 0, aLast = new Date(txns[0].date);
+                      let dep = 0, wth = 0;
+                      for (const t of txns) {
+                        const td = new Date(t.date);
+                        const db = Math.max(0, (td.getTime() - aLast.getTime()) / DAY_MS);
+                        if (db > 0 && aInv > 0) aInv *= Math.pow(1 + rate, db / 365);
+                        aBal += t.amount;
+                        if (t.amount > 0) { aInv += t.amount; dep += t.amount; }
+                        else { aInv = Math.max(0, aInv + t.amount); wth += Math.abs(t.amount); }
+                        aLast = td;
+                      }
+                      const fd = Math.max(0, (today.getTime() - aLast.getTime()) / DAY_MS);
+                      if (fd > 0 && aInv > 0) aInv *= Math.pow(1 + rate, fd / 365);
+                      byAccount[key] = { deposited: dep, withdrawn: wth, compounded: aInv, count: txns.length };
+                    }
+                    const sortedAccts = Object.entries(byAccount).sort((a, b) => b[1].compounded - a[1].compounded);
 
                     return (<>
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -3394,19 +3403,11 @@ export default function Home() {
                         </select>
                       </div>
                       <div className="flex items-center gap-2">
-                        <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
-                        <select value={pvBeneficiaryFilter} onChange={e => setPvBeneficiaryFilter(e.target.value)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
-                          <option value="">All Beneficiaries</option>
-                          {pvBeneficiariesList.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-[var(--text-muted)]">Flag:</label>
+                        <label className="text-xs text-[var(--text-muted)]">Account:</label>
                         <select value={pvFlagFilter} onChange={e => setPvFlagFilter(e.target.value)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
-                          <option value="all">All Flags</option>
-                          {pvFlags.map(f => <option key={f} value={f}>{f}</option>)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                          <option value="all">All Accounts</option>
+                          {pvAccounts.map(a => <option key={a} value={a}>{a}</option>)}
                         </select>
                       </div>
                       <div className="flex items-center gap-2">
@@ -3419,86 +3420,55 @@ export default function Home() {
 
                     {/* Summary cards */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
+                      <div className="bg-[var(--bg)] border border-emerald-200 rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Deposited</div>
+                        <div className="text-lg font-bold text-emerald-600">{fmt(totalDeposits)}</div>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-red-200 rounded-2xl p-3 text-center">
                         <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Withdrawn</div>
-                        <div className="text-lg font-bold text-[var(--text)]">{fmt(totalAmount)}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">{pvWithCalc.length} transactions</div>
+                        <div className="text-lg font-bold text-red-600">{fmt(totalWithdrawals)}</div>
                       </div>
                       <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
-                        <div className="text-lg font-bold text-[var(--text)]">{fmt(totalPV)}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">at {pvReturnRate}% annual</div>
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Net Balance</div>
+                        <div className="text-lg font-bold text-[var(--text)]">{fmt(netDeposited)}</div>
                       </div>
-                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Growth (Lost)</div>
-                        <div className="text-lg font-bold text-amber-600">{fmt(totalGrowth)}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">opportunity cost</div>
-                      </div>
-                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Unique Beneficiaries</div>
-                        <div className="text-lg font-bold text-[var(--text)]">{sortedBeneficiaries.length}</div>
+                      <div className="bg-[var(--bg)] border border-indigo-200 rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Compounded Value</div>
+                        <div className="text-lg font-bold text-indigo-600">{fmt(totalCompounded)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">at {pvReturnRate}% · growth: {fmt(totalGrowth)}</div>
                       </div>
                     </div>
 
-                    {/* By beneficiary summary */}
+                    {/* By account summary */}
                     <div className="border border-[var(--border)] rounded-xl overflow-hidden mb-5">
                       <table className="w-full text-xs">
                         <thead><tr className="bg-[var(--bg-muted)] text-[var(--text-muted)]">
-                          <th className="px-3 py-2 text-left">Beneficiary</th>
+                          <th className="px-3 py-2 text-left">Account</th>
                           <th className="px-3 py-2 text-right"># Txns</th>
-                          <th className="px-3 py-2 text-right">Amount</th>
-                          <th className="px-3 py-2 text-right">Present Value</th>
-                          <th className="px-3 py-2 text-right">Growth</th>
+                          <th className="px-3 py-2 text-right">Deposited</th>
+                          <th className="px-3 py-2 text-right">Withdrawn</th>
+                          <th className="px-3 py-2 text-right">Net</th>
+                          <th className="px-3 py-2 text-right">Compounded Value</th>
                         </tr></thead>
                         <tbody>
-                          {sortedBeneficiaries.slice(0, 30).map(([name, data]) => (
+                          {sortedAccts.map(([name, data]) => (
                             <tr key={name} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
                               <td className="px-3 py-1.5 font-medium">{name}</td>
                               <td className="px-3 py-1.5 text-right tabular-nums">{data.count}</td>
-                              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.amount)}</td>
-                              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.pv)}</td>
-                              <td className="px-3 py-1.5 text-right tabular-nums text-amber-600">{fmt(data.pv - data.amount)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600">{fmt(data.deposited)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-red-600">{fmt(data.withdrawn)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.deposited - data.withdrawn)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-indigo-600 font-semibold">{fmt(data.compounded)}</td>
                             </tr>
                           ))}
                           <tr className="border-t-2 border-[var(--border)] font-bold">
                             <td className="px-3 py-2">TOTAL</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{pvWithCalc.length}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{fmt(totalAmount)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{fmt(totalPV)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-amber-600">{fmt(totalGrowth)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{sortedTxns.length}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmt(totalDeposits)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-red-600">{fmt(totalWithdrawals)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{fmt(netDeposited)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-indigo-600">{fmt(totalCompounded)}</td>
                           </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Transaction detail table */}
-                    <div className="border border-[var(--border)] rounded-xl overflow-auto max-h-[400px]">
-                      <table className="w-full text-[11px]">
-                        <thead className="sticky top-0 bg-[var(--bg-muted)]"><tr className="text-[var(--text-muted)]">
-                          <th className="px-2 py-2 text-left">Date</th>
-                          <th className="px-2 py-2 text-left">Account</th>
-                          <th className="px-2 py-2 text-left">Description</th>
-                          <th className="px-2 py-2 text-left">Beneficiary</th>
-                          <th className="px-2 py-2 text-left">Flag</th>
-                          <th className="px-2 py-2 text-right">Amount</th>
-                          <th className="px-2 py-2 text-right">Days</th>
-                          <th className="px-2 py-2 text-right">Present Value</th>
-                          <th className="px-2 py-2 text-right">Growth</th>
-                        </tr></thead>
-                        <tbody>
-                          {pvWithCalc.map((t: any) => (
-                            <tr key={t.id} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
-                              <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
-                              <td className="px-2 py-1.5 whitespace-nowrap">{t.account}</td>
-                              <td className="px-2 py-1.5 max-w-[250px] truncate" title={t.description}>{(t.description || "").slice(0, 60)}</td>
-                              <td className="px-2 py-1.5">{t.beneficiary || "-"}</td>
-                              <td className="px-2 py-1.5"><FlagBadge flag={t.flag} /></td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.amount)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{t.days}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.presentValue)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums text-amber-600">{fmt(t.growth)}</td>
-                            </tr>
-                          ))}
                         </tbody>
                       </table>
                     </div>

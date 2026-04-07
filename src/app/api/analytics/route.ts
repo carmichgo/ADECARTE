@@ -137,14 +137,19 @@ export async function GET(req: NextRequest) {
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // ── 6. All withdrawals for present value analysis ─────────
-    const allWithdrawals = txns
-      .filter(t => (t.amount || 0) < 0 && (t.direction || "").toLowerCase() === "withdraw" && t.flag !== "disqualified")
+    // ── 6. Normal flag flow transactions for present value analysis ─────────
+    const isExcludedPV = (t: any) => {
+      const dir = (t.direction || "").toLowerCase();
+      const cat = (t.category || "").toLowerCase();
+      return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit|loc principal|loc interest/) || cat.match(/time deposit/);
+    };
+    const pvTransactions = activeTxns
+      .filter(t => !isExcludedPV(t) && (!t.flag || t.flag === "normal"))
       .map(t => ({
-        id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
+        id: t.id, date: t.date, amount: t.amount || 0,
         description: t.description, counterparty: t.counterparty,
         account: t.account || t.account_name, bank: t.bank || "",
-        strategy: t.strategy || "", beneficiary: t.beneficiary || "",
+        direction: t.direction || "", beneficiary: t.beneficiary || "",
         flag: t.flag || "", category: t.category || "",
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -154,7 +159,7 @@ export async function GET(req: NextRequest) {
       balance_by_account: balanceByAccount,
       transaction_counts: transactionCounts,
       fraud_transactions: fraudTxns,
-      all_withdrawals: allWithdrawals,
+      pv_transactions: pvTransactions,
       raw_transactions: rawForAi,
     });
   } catch (err: any) {
