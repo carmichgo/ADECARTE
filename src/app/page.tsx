@@ -1336,7 +1336,7 @@ export default function Home() {
                 <>
                   <h3 className="font-semibold mb-3">Column Mapping</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {["date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "bank", "reference", "counterparty", "symbol", "security", "strategy", "direction"].map(f => (
+                    {["date", "settle_date", "description", "amount", "unit_price", "quantity", "currency", "account", "account_name", "bank", "reference", "counterparty", "beneficiary", "symbol", "security", "strategy", "direction", "ext_bank", "category", "subcategory", "flag", "notes"].map(f => (
                       <div key={f} className="flex flex-col gap-1">
                         <label className="text-xs text-[var(--text-muted)] capitalize">{f}</label>
                         <select
