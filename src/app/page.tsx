@@ -756,10 +756,11 @@ export default function Home() {
         let data;
         try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
         if (data.error) { setExtBankStatus("Error: " + data.error); break; }
-        totalExtracted += data.extracted || 0;
+        const batchExtracted = data.extracted || 0;
+        totalExtracted += batchExtracted;
         remaining = data.remaining || 0;
-        if (data.done || data.remaining === 0) {
-          setExtBankStatus(`Done! Identified external banks for ${totalExtracted} transactions across ${round} batches.`);
+        if (data.done || data.remaining === 0 || batchExtracted === 0) {
+          setExtBankStatus(`Done! Identified external banks for ${totalExtracted} transactions across ${round} batches.${batchExtracted === 0 && remaining > 0 ? ` (${remaining} could not be identified)` : ""}`);
           loadTransactions();
           break;
         }
@@ -786,10 +787,11 @@ export default function Home() {
         let data;
         try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
         if (data.error) { setBeneficiaryStatus("Error: " + data.error); break; }
-        totalExtracted += data.extracted || 0;
+        const batchExtracted = data.extracted || 0;
+        totalExtracted += batchExtracted;
         remaining = data.remaining || 0;
-        if (data.done || data.remaining === 0) {
-          setBeneficiaryStatus(`Done! Identified beneficiaries for ${totalExtracted} transactions across ${round} batches.`);
+        if (data.done || data.remaining === 0 || batchExtracted === 0) {
+          setBeneficiaryStatus(`Done! Identified beneficiaries for ${totalExtracted} transactions across ${round} batches.${batchExtracted === 0 && remaining > 0 ? ` (${remaining} could not be identified)` : ""}`);
           loadTransactions();
           break;
         }

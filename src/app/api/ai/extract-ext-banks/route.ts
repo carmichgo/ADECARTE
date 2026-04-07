@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.ext_bank && t.ext_bank !== "").slice(0, 15);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 25;
-  const maxPerCall = 100;
+  const batchSize = 50;
+  const maxPerCall = 200;
   let totalExtracted = 0;
 
   for (let i = 0; i < Math.min(empty.length, maxPerCall); i += batchSize) {
