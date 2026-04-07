@@ -72,118 +72,162 @@ function traceTransaction(txns: any[], txnId: number, context?: string) {
 
   const absAmount = Math.abs(target.amount || 0);
   const usedIds = new Set<number>([txnId]);
+  const DAY = 24 * 60 * 60 * 1000;
 
-  // Find matching transaction: same absolute amount (±5%), within N days, on any account
-  const findMatch = (amount: number, date: Date, sign: "positive" | "negative" | "any", withinDays: number) => {
+  // Find candidates matching by amount (±5%), within N days, with given sign
+  const findCandidates = (amount: number, date: Date, sign: "positive" | "negative", withinDays: number, preferAccount?: "same" | "different", refAccount?: string) => {
     return txns.filter(t => {
       if (usedIds.has(t.id)) return false;
       if (t.flag === "disqualified") return false;
       const tAmt = Math.abs(t.amount || 0);
+      if (tAmt === 0) return false;
       if (Math.abs(tAmt - amount) > amount * 0.05) return false;
-      const daysDiff = Math.abs(new Date(t.date).getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+      const daysDiff = Math.abs(new Date(t.date).getTime() - date.getTime()) / DAY;
       if (daysDiff > withinDays) return false;
       if (sign === "positive" && (t.amount || 0) <= 0) return false;
       if (sign === "negative" && (t.amount || 0) >= 0) return false;
       return true;
     }).sort((a, b) => {
-      // Prefer different account, then closest date
-      const aDiff = a.account !== target.account ? 0 : 1;
-      const bDiff = b.account !== target.account ? 0 : 1;
-      if (aDiff !== bDiff) return aDiff - bDiff;
+      const acct = refAccount || target.account;
+      // Primary: prefer the right account relationship
+      if (preferAccount === "different") {
+        const aMatch = a.account !== acct ? 0 : 1;
+        const bMatch = b.account !== acct ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+      } else if (preferAccount === "same") {
+        const aMatch = a.account === acct ? 0 : 1;
+        const bMatch = b.account === acct ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+      }
+      // Secondary: closest date
       return Math.abs(new Date(a.date).getTime() - date.getTime()) - Math.abs(new Date(b.date).getTime() - date.getTime());
     });
   };
 
-  // Build chain: start from target, trace backward and forward
-  const chain: any[] = [{ ...target, step: 0, role: "start" }];
+  // Find FX delivery (FOREIGN CASH / MXN DELD / EUR DELD) paired with an FX SPOT
+  const findFxDelivery = (fxSpot: any) => {
+    const fxDate = new Date(fxSpot.date);
+    // Look in ALL txns including disqualified (delivery records are disqualified)
+    return txns.find(t =>
+      !usedIds.has(t.id) &&
+      t.account === fxSpot.account &&
+      (t.amount || 0) > 0 &&
+      Math.abs(new Date(t.date).getTime() - fxDate.getTime()) < 3 * DAY &&
+      ((t.description || "").toUpperCase().includes("MXN DELD") ||
+       (t.description || "").toUpperCase().includes("EUR DELD") ||
+       (t.description || "").toUpperCase().includes("FOREIGN CASH"))
+    );
+  };
 
-  // TRACE FORWARD from target: follow where money went
-  // If target is negative (outflow), the next step is a positive (inflow) somewhere
-  // If target is positive (inflow), the next step is a negative (outflow) from same/diff account
+  // ── TRACE BACKWARD: where did the money come from? ──
+  // Follow the chain: if current is positive (inflow), find the negative (outflow) that sent it
+  // If current is negative (outflow), find the positive (inflow) that funded it on same account
+  const backwardChain: any[] = [];
   let current = target;
   for (let i = 0; i < 10; i++) {
     const curDate = new Date(current.date);
     const curAmt = Math.abs(current.amount || 0);
-    const isNeg = (current.amount || 0) < 0;
+    const isPositive = (current.amount || 0) > 0;
 
-    // Money left (negative) → find where it arrived (positive, different account preferred)
-    // Money arrived (positive) → find where it left (negative, same account preferred)
-    const nextSign = isNeg ? "positive" : "negative";
-    const candidates = findMatch(curAmt, curDate, nextSign, 5);
-
-    if (candidates.length > 0) {
+    if (isPositive) {
+      // This is a deposit — find the outflow (negative) that sent it, prefer DIFFERENT account, on or before this date
+      const candidates = findCandidates(curAmt, curDate, "negative", 5, "different", current.account)
+        .filter(t => new Date(t.date).getTime() <= curDate.getTime() + DAY);
+      if (candidates.length === 0) break;
       const match = candidates[0];
       usedIds.add(match.id);
-      chain.push({ ...match, step: i + 1, role: "forward" });
+      backwardChain.unshift({ ...match, step: -(i + 1), role: "source" });
       current = match;
-
-      // Special: if this is an FX SPOT, find the paired FOREIGN CASH (even if disqualified)
-      // to show the final recipient
-      const desc = (match.description || "").toUpperCase();
-      if (desc.includes("SPOT CURRENCY") || desc.includes("FX SPOT")) {
-        const fxDate = new Date(match.date);
-        const foreignCash = txns.find(t =>
-          !usedIds.has(t.id) &&
-          t.account === match.account &&
-          (t.amount || 0) > 0 &&
-          Math.abs(new Date(t.date).getTime() - fxDate.getTime()) < 2 * 24 * 60 * 60 * 1000 &&
-          ((t.description || "").toUpperCase().includes("MXN DELD") ||
-           (t.description || "").toUpperCase().includes("EUR DELD") ||
-           (t.description || "").toUpperCase().includes("FOREIGN CASH"))
-        );
-        if (foreignCash) {
-          usedIds.add(foreignCash.id);
-          chain.push({ ...foreignCash, step: i + 1.5, role: "fx_delivery", note: "FX delivery — shows final recipient of converted currency" });
-        }
-      }
     } else {
-      // For inflows, also look for split outflows (multiple smaller outflows)
-      if (!isNeg) {
+      // This is an outflow — find the inflow (positive) that funded it on SAME account, on or before this date
+      const candidates = findCandidates(curAmt, curDate, "positive", 5, "same", current.account)
+        .filter(t => new Date(t.date).getTime() <= curDate.getTime() + DAY);
+      if (candidates.length === 0) break;
+      const match = candidates[0];
+      usedIds.add(match.id);
+      backwardChain.unshift({ ...match, step: -(i + 1), role: "source" });
+      current = match;
+    }
+  }
+
+  // ── TRACE FORWARD: where did the money go? ──
+  // Follow the chain: if current is negative (outflow), find the positive (inflow) that received it
+  // If current is positive (inflow), find the negative (outflow) from same account that sent it onward
+  const forwardChain: any[] = [];
+  current = target;
+  for (let i = 0; i < 10; i++) {
+    const curDate = new Date(current.date);
+    const curAmt = Math.abs(current.amount || 0);
+    const isNegative = (current.amount || 0) < 0;
+
+    if (isNegative) {
+      // This is an outflow — find where it landed (positive, DIFFERENT account, on or after)
+      const candidates = findCandidates(curAmt, curDate, "positive", 5, "different", current.account)
+        .filter(t => new Date(t.date).getTime() >= curDate.getTime() - DAY);
+      if (candidates.length === 0) break;
+      const match = candidates[0];
+      usedIds.add(match.id);
+      forwardChain.push({ ...match, step: i + 1, role: "forward" });
+      current = match;
+    } else {
+      // This is an inflow — find the outflow (negative) from SAME account that sent it onward
+      const candidates = findCandidates(curAmt, curDate, "negative", 5, "same", current.account)
+        .filter(t => new Date(t.date).getTime() >= curDate.getTime() - DAY);
+
+      if (candidates.length > 0) {
+        const match = candidates[0];
+        usedIds.add(match.id);
+        forwardChain.push({ ...match, step: i + 1, role: "forward" });
+        current = match;
+
+        // If this is an FX SPOT, attach the delivery record
+        const desc = (match.description || "").toUpperCase();
+        if (desc.includes("SPOT CURRENCY") || desc.includes("FX SPOT")) {
+          const delivery = findFxDelivery(match);
+          if (delivery) {
+            usedIds.add(delivery.id);
+            forwardChain.push({ ...delivery, step: i + 1.5, role: "fx_delivery", note: "FX delivery — shows final recipient" });
+          }
+        }
+      } else {
+        // No single matching outflow — look for SPLITS (multiple smaller outflows from same account)
         const outflows = txns.filter(t => {
           if (usedIds.has(t.id) || t.flag === "disqualified") return false;
           if (t.account !== current.account) return false;
           if ((t.amount || 0) >= 0) return false;
           const tDate = new Date(t.date);
-          return tDate.getTime() >= curDate.getTime() && (tDate.getTime() - curDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          return tDate.getTime() >= curDate.getTime() - DAY && (tDate.getTime() - curDate.getTime()) < 7 * DAY;
+        }).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)); // largest first
 
         let remaining = curAmt;
+        const splits: any[] = [];
         for (const out of outflows) {
           if (remaining <= 0) break;
           const outAmt = Math.abs(out.amount || 0);
           if (outAmt <= remaining * 1.1) {
             usedIds.add(out.id);
-            chain.push({ ...out, step: i + 1, role: "split" });
+            const split = { ...out, step: i + 1, role: "split" };
+            splits.push(split);
             remaining -= outAmt;
+
+            // Check for FX delivery on each split
+            const desc = (out.description || "").toUpperCase();
+            if (desc.includes("SPOT CURRENCY") || desc.includes("FX SPOT")) {
+              const delivery = findFxDelivery(out);
+              if (delivery) {
+                usedIds.add(delivery.id);
+                splits.push({ ...delivery, step: i + 1.5, role: "fx_delivery", note: "FX delivery — shows final recipient" });
+              }
+            }
           }
         }
+        forwardChain.push(...splits);
+        break;
       }
-      break;
     }
   }
 
-  // TRACE BACKWARD from target: follow where money came from
-  current = target;
-  for (let i = 0; i < 10; i++) {
-    const curDate = new Date(current.date);
-    const curAmt = Math.abs(current.amount || 0);
-    const isNeg = (current.amount || 0) < 0;
-
-    // Money arrived (positive) → find where it came from (negative, different account preferred)
-    // Money left (negative) → find what funded it (positive, same account preferred, before this date)
-    const prevSign = isNeg ? "positive" : "negative";
-    const candidates = findMatch(curAmt, curDate, prevSign, 5)
-      .filter(t => new Date(t.date).getTime() <= curDate.getTime() + 24 * 60 * 60 * 1000); // allow 1 day after
-
-    if (candidates.length > 0) {
-      const match = candidates[0];
-      usedIds.add(match.id);
-      chain.unshift({ ...match, step: -(i + 1), role: "backward" });
-      current = match;
-    } else {
-      break;
-    }
-  }
+  const chain = [...backwardChain, { ...target, step: 0, role: "start" }, ...forwardChain];
 
   return NextResponse.json({
     chain,
