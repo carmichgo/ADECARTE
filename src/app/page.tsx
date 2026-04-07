@@ -3361,9 +3361,11 @@ export default function Home() {
                         investedBalance = Math.max(0, investedBalance + t.amount);
                       }
                       lastDate = txnDate;
+                      const daysToToday = Math.round(Math.max(0, (today.getTime() - txnDate.getTime()) / DAY_MS));
                       ledger.push({
                         ...t,
                         daysSincePrev: Math.round(daysBetween),
+                        daysToToday,
                         compoundGain: Math.round(compoundGain * 100) / 100,
                         balanceBefore: Math.round((preApply) * 100) / 100,
                         balanceAfter: Math.round(investedBalance * 100) / 100,
@@ -3515,7 +3517,8 @@ export default function Home() {
                           <th className="px-2 py-2 text-left">Account</th>
                           <th className="px-2 py-2 text-left">Description</th>
                           <th className="px-2 py-2 text-right">Amount</th>
-                          <th className="px-2 py-2 text-right">Days</th>
+                          <th className="px-2 py-2 text-right">Age (days)</th>
+                          <th className="px-2 py-2 text-right">Gap</th>
                           <th className="px-2 py-2 text-right">Compound Gain</th>
                           <th className="px-2 py-2 text-right">Invested Before</th>
                           <th className="px-2 py-2 text-right">Invested After</th>
@@ -3528,7 +3531,8 @@ export default function Home() {
                               <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{t.account}</td>
                               <td className="px-2 py-1.5 max-w-[200px] truncate" title={t.description}>{(t.description || "").slice(0, 50)}</td>
                               <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{t.daysSincePrev}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{t.daysToToday}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{t.daysSincePrev || "-"}</td>
                               <td className="px-2 py-1.5 text-right tabular-nums text-indigo-500">{t.compoundGain > 0 ? `+${fmt(t.compoundGain)}` : "-"}</td>
                               <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.balanceBefore)}</td>
                               <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(t.balanceAfter)}</td>
