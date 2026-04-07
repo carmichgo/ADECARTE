@@ -3645,44 +3645,89 @@ export default function Home() {
             <div className="overflow-auto flex-1 p-6">
               {traceLoading ? (
                 <div className="text-center py-12"><span className="spinner"></span> Tracing flow...</div>
-              ) : traceData?.chain && Array.isArray(traceData.chain) && traceData.chain.length > 0 ? (
-                <div className="space-y-4">
-                  <p className="text-xs text-[var(--text-muted)]">{traceData.chain_length} transactions in chain · Amount: {fmt(traceData.target_amount)}</p>
-                  {/* Linear chain visualization */}
-                  <div className="flex items-start gap-3 overflow-x-auto pb-4">
-                    {traceData.chain.map((t: any, i: number) => {
-                      const isStart = t.role === "start";
-                      const isNeg = (t.amount || 0) < 0;
-                      const borderColor = isStart ? "border-amber-400" : isNeg ? "border-red-300" : "border-emerald-300";
-                      const bgColor = isStart ? "bg-amber-50" : isNeg ? "bg-red-50" : "bg-emerald-50";
-                      const labelColor = isStart ? "text-amber-600" : isNeg ? "text-red-600" : "text-emerald-600";
-                      const stepLabel = isStart ? "YOU ARE HERE" : t.step < 0 ? `Step ${t.step}` : `Step +${t.step}`;
+              ) : traceData?.chain && Array.isArray(traceData.chain) && traceData.chain.length > 0 ? (() => {
+                // Group chain by step level — same step = same level (stacked vertically)
+                const levels: Record<string, any[]> = {};
+                for (const t of traceData.chain) {
+                  const key = String(Math.floor(t.step));
+                  if (!levels[key]) levels[key] = [];
+                  levels[key].push(t);
+                }
+                const sortedKeys = Object.keys(levels).sort((a, b) => Number(a) - Number(b));
+
+                return (
+                <div className="space-y-2">
+                  <p className="text-xs text-[var(--text-muted)] mb-4">{traceData.chain_length} transactions in chain · Amount: {fmt(traceData.target_amount)}</p>
+                  {/* Vertical flowchart */}
+                  <div className="flex flex-col items-center gap-0">
+                    {sortedKeys.map((key, levelIdx) => {
+                      const txns = levels[key];
+                      const isSplit = txns.length > 1;
                       return (
-                        <React.Fragment key={t.id}>
-                          {i > 0 && (
-                            <div className="flex-shrink-0 self-center">
-                              <svg className="w-6 h-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        <React.Fragment key={key}>
+                          {/* Arrow between levels */}
+                          {levelIdx > 0 && (
+                            <div className="flex flex-col items-center py-1">
+                              <div className="w-0.5 h-4 bg-[var(--border)]" />
+                              <svg className="w-4 h-4 text-[var(--text-muted)] -mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                               </svg>
+                              {isSplit && (
+                                <div className="text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5">
+                                  SPLIT INTO {txns.length}
+                                </div>
+                              )}
                             </div>
                           )}
-                          <div className={`flex-shrink-0 border-2 ${borderColor} ${bgColor} rounded-xl p-4 min-w-[230px] max-w-[280px] ${isStart ? "ring-2 ring-amber-400 ring-offset-2" : ""}`}>
-                            <div className={`text-[10px] ${labelColor} font-bold uppercase mb-1`}>{stepLabel}</div>
-                            <div className="text-[10px] text-[var(--text-muted)] font-medium">{t.bank || "-"} · {t.account || "-"}</div>
-                            <div className={`text-xl font-bold mt-1 ${isNeg ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</div>
-                            <div className="text-xs text-[var(--text-muted)] mt-1">{t.date} · {t.direction || "-"}</div>
-                            <div className="text-xs mt-2 text-[var(--text)]" style={{ wordBreak: "break-word" }}>{t.description || "-"}</div>
-                            {t.counterparty && <div className="text-[10px] text-[var(--text-muted)] mt-1">Entity: {t.counterparty}</div>}
-                            {t.beneficiary && <div className="text-[10px] text-[var(--text-muted)]">Beneficiary: {t.beneficiary}</div>}
-                            {t.ext_bank && <div className="text-[10px] text-[var(--text-muted)]">Ext Bank: {t.ext_bank}</div>}
-                            <div className="text-[10px] text-[var(--text-muted)] mt-1">Category: {t.category || "-"} · <FlagBadge flag={t.flag} /></div>
+                          {/* Level: cards stacked vertically if split, single card if not */}
+                          <div className={`flex ${isSplit ? "flex-row flex-wrap justify-center" : "flex-col items-center"} gap-3`}>
+                            {txns.map((t: any) => {
+                              const isStart = t.role === "start";
+                              const isFx = t.role === "fx_delivery";
+                              const isNeg = (t.amount || 0) < 0;
+                              const borderColor = isStart ? "border-amber-400" : isFx ? "border-purple-300" : isNeg ? "border-red-300" : "border-emerald-300";
+                              const bgColor = isStart ? "bg-amber-50" : isFx ? "bg-purple-50" : isNeg ? "bg-red-50" : "bg-emerald-50";
+                              const labelColor = isStart ? "text-amber-600" : isFx ? "text-purple-600" : isNeg ? "text-red-600" : "text-emerald-600";
+                              const stepLabel = isStart ? "ORIGIN" : isFx ? "FX DELIVERY" : t.role === "split" ? "SPLIT" : t.step < 0 ? `SOURCE ${Math.abs(t.step)}` : `STEP ${t.step}`;
+                              const acctLabel = t.account || "-";
+                              const bankLabel = t.bank || "";
+                              return (
+                                <div key={t.id} className={`border-2 ${borderColor} ${bgColor} rounded-xl p-4 w-[340px] ${isStart ? "ring-2 ring-amber-400 ring-offset-2" : ""}`}>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className={`text-[10px] ${labelColor} font-bold uppercase tracking-wide`}>{stepLabel}</span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">ID: {t.id}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="text-[11px] text-[var(--text-muted)] font-medium">{bankLabel}{bankLabel && acctLabel ? " · " : ""}{acctLabel}</div>
+                                      <div className="text-xs text-[var(--text-muted)]">{t.date}</div>
+                                    </div>
+                                    <div className={`text-xl font-bold ${isNeg ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</div>
+                                  </div>
+                                  <div className="text-xs mt-2 text-[var(--text)] leading-relaxed" style={{ wordBreak: "break-word" }}>{(t.description || "-").slice(0, 120)}</div>
+                                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
+                                    {t.counterparty && <span className="text-[10px] text-[var(--text-muted)]">To: <strong>{t.counterparty}</strong></span>}
+                                    {t.beneficiary && <span className="text-[10px] text-[var(--text-muted)]">Beneficiary: <strong>{t.beneficiary}</strong></span>}
+                                    {t.ext_bank && <span className="text-[10px] text-[var(--text-muted)]">Bank: {t.ext_bank}</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-[10px] text-[var(--text-muted)]">{t.direction || "-"}</span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">·</span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">{t.category || "-"}</span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">·</span>
+                                    <FlagBadge flag={t.flag} />
+                                  </div>
+                                  {t.note && <div className="text-[10px] text-purple-600 mt-1 italic">{t.note}</div>}
+                                </div>
+                              );
+                            })}
                           </div>
                         </React.Fragment>
                       );
                     })}
                   </div>
-                </div>
-              ) : (
+                </div>);
+              })() : (
                 <p className="text-[var(--text-muted)] text-center py-8">No flow chain found for this transaction. Try tracing from the middle of a transfer chain.</p>
               )}
             </div>
