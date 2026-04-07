@@ -3336,35 +3336,43 @@ export default function Home() {
                     // Simulate investment account: balance compounds daily
                     // Deposits add to balance, withdrawals remove from balance (stop compounding that portion)
                     const sortedTxns = [...pvTxns].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                    let balance = 0; // running actual balance
-                    let investedBalance = 0; // what balance would be if invested
+                    let balance = 0;
+                    let investedBalance = 0;
                     let lastDate = sortedTxns.length > 0 ? new Date(sortedTxns[0].date) : today;
                     const totalDeposits = sortedTxns.filter((t: any) => t.amount > 0).reduce((s: number, t: any) => s + t.amount, 0);
                     const totalWithdrawals = sortedTxns.filter((t: any) => t.amount < 0).reduce((s: number, t: any) => s + Math.abs(t.amount), 0);
                     const netDeposited = totalDeposits - totalWithdrawals;
 
-                    // Walk through transactions chronologically, compounding between events
-                    const events: Array<{ date: string; balance: number; invested: number }> = [];
+                    // Walk through transactions, tracking ledger at each step
+                    const ledger: Array<any> = [];
                     for (const t of sortedTxns) {
                       const txnDate = new Date(t.date);
-                      // Compound the invested balance from lastDate to this transaction date
                       const daysBetween = Math.max(0, (txnDate.getTime() - lastDate.getTime()) / DAY_MS);
+                      const prevInvested = investedBalance;
                       if (daysBetween > 0 && investedBalance > 0) {
                         investedBalance *= Math.pow(1 + rate, daysBetween / 365);
                       }
-                      // Apply transaction
+                      const compoundGain = investedBalance - prevInvested;
                       balance += t.amount;
+                      const preApply = investedBalance;
                       if (t.amount > 0) {
-                        investedBalance += t.amount; // deposit: add to invested
+                        investedBalance += t.amount;
                       } else {
-                        // Withdrawal: remove from invested (proportional — can't go below 0)
                         investedBalance = Math.max(0, investedBalance + t.amount);
                       }
                       lastDate = txnDate;
-                      events.push({ date: t.date, balance, invested: investedBalance });
+                      ledger.push({
+                        ...t,
+                        daysSincePrev: Math.round(daysBetween),
+                        compoundGain: Math.round(compoundGain * 100) / 100,
+                        balanceBefore: Math.round((preApply) * 100) / 100,
+                        balanceAfter: Math.round(investedBalance * 100) / 100,
+                        actualBalance: Math.round(balance * 100) / 100,
+                      });
                     }
-                    // Compound from last transaction to today
+                    // Final compounding to today
                     const finalDays = Math.max(0, (today.getTime() - lastDate.getTime()) / DAY_MS);
+                    const preFinal = investedBalance;
                     if (finalDays > 0 && investedBalance > 0) {
                       investedBalance *= Math.pow(1 + rate, finalDays / 365);
                     }
@@ -3490,6 +3498,43 @@ export default function Home() {
                             <td className="px-3 py-2 text-right tabular-nums">{fmt(netDeposited)}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-indigo-600">{fmt(totalCompounded)}</td>
                           </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Transaction ledger */}
+                    <h4 className="text-sm font-semibold mt-6 mb-2">Compounding Ledger</h4>
+                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                      Shows how the invested balance changes at each transaction. "Compound Gain" = interest earned since the previous transaction.
+                      {finalDays > 0 && <> Final compounding: {Math.round(finalDays)} days from last txn to today → {fmt(preFinal)} → {fmt(totalCompounded)} (+{fmt(totalCompounded - preFinal)})</>}
+                    </p>
+                    <div className="border border-[var(--border)] rounded-xl overflow-auto max-h-[500px]">
+                      <table className="w-full text-[11px]">
+                        <thead className="sticky top-0 bg-[var(--bg-muted)]"><tr className="text-[var(--text-muted)]">
+                          <th className="px-2 py-2 text-left">Date</th>
+                          <th className="px-2 py-2 text-left">Account</th>
+                          <th className="px-2 py-2 text-left">Description</th>
+                          <th className="px-2 py-2 text-right">Amount</th>
+                          <th className="px-2 py-2 text-right">Days</th>
+                          <th className="px-2 py-2 text-right">Compound Gain</th>
+                          <th className="px-2 py-2 text-right">Invested Before</th>
+                          <th className="px-2 py-2 text-right">Invested After</th>
+                          <th className="px-2 py-2 text-right">Actual Balance</th>
+                        </tr></thead>
+                        <tbody>
+                          {ledger.map((t: any) => (
+                            <tr key={t.id} className={`border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] ${t.amount < 0 ? "bg-red-50/30" : ""}`}>
+                              <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
+                              <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{t.account}</td>
+                              <td className="px-2 py-1.5 max-w-[200px] truncate" title={t.description}>{(t.description || "").slice(0, 50)}</td>
+                              <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{t.daysSincePrev}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-indigo-500">{t.compoundGain > 0 ? `+${fmt(t.compoundGain)}` : "-"}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.balanceBefore)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(t.balanceAfter)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{fmt(t.actualBalance)}</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
