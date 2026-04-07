@@ -23,10 +23,11 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.beneficiary && t.beneficiary !== "").slice(0, 20);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 40;
+  const batchSize = 25;
+  const maxPerCall = 100;
   let totalExtracted = 0;
 
-  for (let i = 0; i < Math.min(empty.length, 200); i += batchSize) {
+  for (let i = 0; i < Math.min(empty.length, maxPerCall); i += batchSize) {
     const batch = empty.slice(i, i + batchSize);
     const txnList = batch.map(t => ({
       id: t.id, description: t.description, amount: t.amount,
@@ -83,8 +84,9 @@ Respond with ONLY a JSON array:
   }
 
   return NextResponse.json({
-    message: `Identified beneficiaries for ${totalExtracted} of ${Math.min(empty.length, 200)} transactions (${empty.length} total empty). Run again for more.`,
+    message: `Identified beneficiaries for ${totalExtracted} of ${Math.min(empty.length, maxPerCall)} transactions (${empty.length} total empty).`,
     extracted: totalExtracted,
-    remaining: empty.length - Math.min(empty.length, 200),
+    remaining: empty.length - Math.min(empty.length, maxPerCall),
+    done: empty.length <= maxPerCall,
   });
 }

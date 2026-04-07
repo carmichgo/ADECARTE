@@ -758,22 +758,31 @@ export default function Home() {
 
   const fillBeneficiaries = async () => {
     setBeneficiaryLoading(true);
-    setBeneficiaryStatus("AI is identifying beneficiaries...");
-    try {
-      const res = await fetch("/api/ai/extract-beneficiaries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
-      });
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
-      if (data.error) setBeneficiaryStatus("Error: " + data.error);
-      else {
-        setBeneficiaryStatus(data.message);
-        loadTransactions();
-      }
-    } catch (err: any) { setBeneficiaryStatus("Error: " + err.message); }
+    let totalExtracted = 0;
+    let round = 0;
+    let remaining = -1;
+    while (true) {
+      round++;
+      setBeneficiaryStatus(`Batch ${round}: AI is identifying beneficiaries... (${totalExtracted} done so far${remaining > 0 ? `, ~${remaining} remaining` : ""})`);
+      try {
+        const res = await fetch("/api/ai/extract-beneficiaries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+        if (data.error) { setBeneficiaryStatus("Error: " + data.error); break; }
+        totalExtracted += data.extracted || 0;
+        remaining = data.remaining || 0;
+        if (data.done || data.remaining === 0) {
+          setBeneficiaryStatus(`Done! Identified beneficiaries for ${totalExtracted} transactions across ${round} batches.`);
+          loadTransactions();
+          break;
+        }
+      } catch (err: any) { setBeneficiaryStatus("Error: " + err.message); break; }
+    }
     setBeneficiaryLoading(false);
   };
 
