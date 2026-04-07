@@ -3101,7 +3101,10 @@ export default function Home() {
                       return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
                     }
                     const fraudBanks: string[] = [...new Set(allFraudTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
-                    const fraudTxns = fraudBankFilter === "all" ? allFraudTxns : allFraudTxns.filter((t: any) => (t.bank || "Unknown") === fraudBankFilter);
+                    const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
+                    const fraudTxns = allFraudTxns
+                      .filter((t: any) => fraudBankFilter === "all" || (t.bank || "Unknown") === fraudBankFilter)
+                      .filter((t: any) => fraudBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === fraudBeneficiaryFilter);
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
@@ -3126,6 +3129,14 @@ export default function Home() {
                             className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
                             <option value="all">All Banks</option>
                             {fraudBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                          <select value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}
+                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                            <option value="">All Beneficiaries</option>
+                            {fraudBeneficiaries.map(b => <option key={b} value={b}>{b}</option>)}
                           </select>
                         </div>
                         <div className="flex items-center gap-2">
