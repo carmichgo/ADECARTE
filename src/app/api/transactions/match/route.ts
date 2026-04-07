@@ -12,6 +12,24 @@ export async function POST(req: NextRequest) {
     const group = matchGroup || `match_${Date.now()}`;
     const { error } = await db.from("transactions").update({ match_group: group }).in("id", ids);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Auto-fix directions for cross-bank links
+    const { data: linked } = await db.from("transactions").select("id, amount, bank, direction").in("id", ids);
+    if (linked && linked.length >= 2) {
+      const deposits = linked.filter((t: any) => (t.amount || 0) > 0);
+      const withdrawals = linked.filter((t: any) => (t.amount || 0) < 0);
+      for (const dep of deposits) {
+        for (const wth of withdrawals) {
+          const isCrossBank = dep.bank && wth.bank && dep.bank !== wth.bank;
+          if (isCrossBank) {
+            // Cross-bank: deposit = Contribution, withdrawal = Internal Transfer
+            await db.from("transactions").update({ direction: "Contribution" }).eq("id", dep.id);
+            await db.from("transactions").update({ direction: "Internal Transfer" }).eq("id", wth.id);
+          }
+        }
+      }
+    }
+
     return NextResponse.json({ message: `Linked ${ids.length} transactions`, match_group: group });
   }
 

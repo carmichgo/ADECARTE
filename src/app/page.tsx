@@ -3441,6 +3441,66 @@ export default function Home() {
               )}
             </div>
 
+            {/* Data Tools */}
+            <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-6 mb-6">
+              <h3 className="text-sm font-semibold mb-1">Data Tools</h3>
+              <p className="text-xs text-[var(--text-muted)] mb-4">Fix data issues across all transactions</p>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    id="fix-directions-btn"
+                    onClick={async () => {
+                      const btn = document.getElementById("fix-directions-btn") as HTMLButtonElement;
+                      const out = document.getElementById("fix-directions-output") as HTMLElement;
+                      btn.disabled = true;
+                      btn.textContent = "Scanning...";
+                      out.textContent = "Finding cross-bank matched transfers with wrong directions...";
+                      try {
+                        // First dry run
+                        const dryRes = await fetch("/api/transactions/fix-directions", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ dryRun: true }),
+                        });
+                        const dryData = await dryRes.json();
+                        if (!dryData.fixes || dryData.fixes.length === 0) {
+                          out.textContent = "No direction fixes needed — all cross-bank transfers have correct directions.";
+                          btn.disabled = false;
+                          btn.textContent = "Fix Cross-Bank Directions";
+                          return;
+                        }
+                        out.innerHTML = `<strong>Found ${dryData.fixes.length} fixes needed:</strong><br/>` +
+                          dryData.fixes.map((f: any) => `ID ${f.id}: ${f.oldDirection} → ${f.newDirection} (${f.reason})`).join("<br/>");
+                        // Apply
+                        btn.textContent = "Applying...";
+                        const applyRes = await fetch("/api/transactions/fix-directions", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ dryRun: false }),
+                        });
+                        const applyData = await applyRes.json();
+                        out.innerHTML += `<br/><br/><strong>${applyData.message}</strong>`;
+                        btn.disabled = false;
+                        btn.textContent = "Fix Cross-Bank Directions";
+                      } catch (err: any) {
+                        out.textContent = "Error: " + err.message;
+                        btn.disabled = false;
+                        btn.textContent = "Fix Cross-Bank Directions";
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-500 whitespace-nowrap"
+                  >
+                    Fix Cross-Bank Directions
+                  </button>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    Fixes matched cross-bank transfers: deposit side → Contribution, withdrawal side → Internal Transfer
+                  </span>
+                </div>
+                <div id="fix-directions-output" className="text-xs text-[var(--text-secondary)] bg-[var(--bg-muted)] rounded-lg p-3 min-h-[2rem] whitespace-pre-wrap"></div>
+              </div>
+            </div>
+
             {/* Info */}
             <div className="bg-[var(--bg-muted)] border border-[var(--border)] rounded-2xl p-5">
               <h3 className="text-sm font-semibold mb-2">How Signature Verification Works</h3>
