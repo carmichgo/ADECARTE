@@ -32,40 +32,31 @@ export async function POST(req: NextRequest) {
 
     for (const dep of deposits) {
       for (const wth of withdrawals) {
-        const depBank = (dep.bank || "").toLowerCase();
-        const wthBank = (wth.bank || "").toLowerCase();
+        // Both sides of a transfer between our own accounts = Internal Transfer
+        if ((dep.direction || "").toLowerCase() !== "internal transfer") {
+          fixes.push({
+            id: dep.id,
+            oldDirection: dep.direction || "",
+            newDirection: "Internal Transfer",
+            reason: `Matched transfer between own accounts (${wth.account} → ${dep.account}) — both sides Internal Transfer`,
+            description: dep.description || "",
+            account: dep.account || dep.account_name || "",
+            bank: dep.bank || "",
+            amount: dep.amount,
+          });
+        }
 
-        // Cross-bank transfer: different banks
-        const isCrossBank = depBank !== wthBank && depBank !== "" && wthBank !== "";
-
-        if (isCrossBank) {
-          // The deposit (receiving) side should be Contribution, not Internal Transfer
-          if ((dep.direction || "").toLowerCase() === "internal transfer") {
-            fixes.push({
-              id: dep.id,
-              oldDirection: dep.direction,
-              newDirection: "Contribution",
-              reason: `Cross-bank deposit from ${wthBank} → ${depBank} should be Contribution`,
-              description: dep.description || "",
-              account: dep.account || dep.account_name || "",
-              bank: dep.bank || "",
-              amount: dep.amount,
-            });
-          }
-
-          // The withdrawal (sending) side should be Internal Transfer (since money went to another owned account)
-          if ((wth.direction || "").toLowerCase() !== "internal transfer") {
-            fixes.push({
-              id: wth.id,
-              oldDirection: wth.direction || "",
-              newDirection: "Internal Transfer",
-              reason: `Cross-bank withdrawal from ${wthBank} → ${depBank} should be Internal Transfer (went to owned account)`,
-              description: wth.description || "",
-              account: wth.account || wth.account_name || "",
-              bank: wth.bank || "",
-              amount: wth.amount,
-            });
-          }
+        if ((wth.direction || "").toLowerCase() !== "internal transfer") {
+          fixes.push({
+            id: wth.id,
+            oldDirection: wth.direction || "",
+            newDirection: "Internal Transfer",
+            reason: `Matched transfer between own accounts (${wth.account} → ${dep.account}) — both sides Internal Transfer`,
+            description: wth.description || "",
+            account: wth.account || wth.account_name || "",
+            bank: wth.bank || "",
+            amount: wth.amount,
+          });
         }
       }
     }

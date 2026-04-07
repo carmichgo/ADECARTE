@@ -3494,7 +3494,7 @@ export default function Home() {
                     Fix Cross-Bank Directions
                   </button>
                   <span className="text-xs text-[var(--text-muted)]">
-                    Fixes matched cross-bank transfers: deposit side → Contribution, withdrawal side → Internal Transfer
+                    Fixes matched transfers between own accounts: both sides → Internal Transfer
                   </span>
                 </div>
                 <div id="fix-directions-output" className="text-xs text-[var(--text-secondary)] bg-[var(--bg-muted)] rounded-lg p-3 min-h-[2rem] whitespace-pre-wrap"></div>

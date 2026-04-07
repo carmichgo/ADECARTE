@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
         for (const wth of withdrawals) {
           const isCrossBank = dep.bank && wth.bank && dep.bank !== wth.bank;
           if (isCrossBank) {
-            // Cross-bank: deposit = Contribution, withdrawal = Internal Transfer
-            await db.from("transactions").update({ direction: "Contribution" }).eq("id", dep.id);
+            // Both sides of transfer between own accounts = Internal Transfer
+            await db.from("transactions").update({ direction: "Internal Transfer" }).eq("id", dep.id);
             await db.from("transactions").update({ direction: "Internal Transfer" }).eq("id", wth.id);
           }
         }
