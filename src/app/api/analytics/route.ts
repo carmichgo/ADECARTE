@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
     const isExcludedPV = (t: any) => {
       const dir = (t.direction || "").toLowerCase();
       const cat = (t.category || "").toLowerCase();
-      return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/line of credit|loc principal|loc interest/) || cat.match(/time deposit/);
+      return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/time deposit/);
     };
     const pvTransactions = activeTxns
       .filter(t => !isExcludedPV(t) && (!t.flag || t.flag === "normal"))
@@ -172,7 +172,6 @@ function excludeFromFlow(t: any): boolean {
   const cat = (t.category || "").toLowerCase();
   if (dir.match(/internal|transfer between/)) return true;
   if (cat.match(/transfer.*between|internal.*transfer/)) return true;
-  if (cat.match(/line of credit|loc principal|loc interest/)) return true;
   if (cat.match(/time deposit/)) return true;
   return false;
 }
