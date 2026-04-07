@@ -53,7 +53,7 @@ export async function GET() {
   const suspiciousAmount = suspiciousItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
   const suspiciousCount = suspiciousItems.length;
 
-  const verifiedFraudItems = active.filter(t => t.flag === "verified_fraud" && (t.amount || 0) < 0 && (t.direction || "").toLowerCase() !== "internal transfer");
+  const verifiedFraudItems = active.filter(t => t.flag === "verified_fraud" && (t.amount || 0) < 0 && (t.direction || "").toLowerCase() === "withdraw");
   const verifiedFraudAmount = verifiedFraudItems.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
   const verifiedFraudCount = verifiedFraudItems.length;
 
