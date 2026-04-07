@@ -146,6 +146,7 @@ export default function Home() {
   const [pvReturnRate, setPvReturnRate] = useState(7);
   const [pvBankFilter, setPvBankFilter] = useState("all");
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
+  const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
   const [pvFlagFilter, setPvFlagFilter] = useState("all");
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
@@ -3320,9 +3321,13 @@ export default function Home() {
                     }
                     const pvBanks: string[] = [...new Set(allPvTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
                     const pvAccounts: string[] = [...new Set(allPvTxns.map((t: any) => t.account || "Unknown") as string[])].sort();
+                    const pvBeneficiariesList: string[] = [...new Set(allPvTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
+                    const pvCounterparties: string[] = [...new Set(allPvTxns.map((t: any) => t.counterparty || "Unknown") as string[])].sort();
                     const pvTxns = allPvTxns
                       .filter((t: any) => pvBankFilter === "all" || (t.bank || "Unknown") === pvBankFilter)
-                      .filter((t: any) => pvFlagFilter === "all" || pvFlagFilter === "" || (t.account || "Unknown") === pvFlagFilter);
+                      .filter((t: any) => pvFlagFilter === "all" || pvFlagFilter === "" || (t.account || "Unknown") === pvFlagFilter)
+                      .filter((t: any) => pvBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === pvBeneficiaryFilter)
+                      .filter((t: any) => pvCounterpartyFilter === "" || (t.counterparty || "Unknown") === pvCounterpartyFilter);
 
                     const today = new Date();
                     const rate = pvReturnRate / 100;
@@ -3408,6 +3413,22 @@ export default function Home() {
                           className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
                           <option value="all">All Accounts</option>
                           {pvAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                        <select value={pvBeneficiaryFilter} onChange={e => setPvBeneficiaryFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                          <option value="">All Beneficiaries</option>
+                          {pvBeneficiariesList.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Receiving Entity:</label>
+                        <select value={pvCounterpartyFilter} onChange={e => setPvCounterpartyFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                          <option value="">All Entities</option>
+                          {pvCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <div className="flex items-center gap-2">
