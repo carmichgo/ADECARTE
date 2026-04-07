@@ -139,9 +139,7 @@ export async function GET(req: NextRequest) {
 
     // ── 6. Normal flag flow transactions for present value analysis ─────────
     const isExcludedPV = (t: any) => {
-      const dir = (t.direction || "").toLowerCase();
-      const cat = (t.category || "").toLowerCase();
-      return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/time deposit/);
+      return (t.direction || "").toLowerCase() === "internal transfer";
     };
     const pvTransactions = activeTxns
       .filter(t => !isExcludedPV(t) && (!t.flag || t.flag === "normal"))
@@ -168,12 +166,7 @@ export async function GET(req: NextRequest) {
 }
 
 function excludeFromFlow(t: any): boolean {
-  const dir = (t.direction || "").toLowerCase();
-  const cat = (t.category || "").toLowerCase();
-  if (dir.match(/internal|transfer between/)) return true;
-  if (cat.match(/transfer.*between|internal.*transfer/)) return true;
-  if (cat.match(/time deposit/)) return true;
-  return false;
+  return (t.direction || "").toLowerCase() === "internal transfer";
 }
 
 function extractParty(description: string | null): string {

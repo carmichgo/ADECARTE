@@ -12,8 +12,7 @@ export async function GET() {
   const active = all.filter(t => t.flag !== "disqualified");
   const isExcluded = (t: any) => {
     const dir = (t.direction || "").toLowerCase();
-    const cat = (t.category || "").toLowerCase();
-    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/time deposit/);
+    return dir === "internal transfer";
   };
   const flowTxns = active.filter(t => !isExcluded(t)); // Only real contributions/withdrawals
 

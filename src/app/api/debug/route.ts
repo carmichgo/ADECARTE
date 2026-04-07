@@ -12,7 +12,7 @@ export async function GET() {
   const isExcluded = (t: any) => {
     const dir = (t.direction || "").toLowerCase();
     const cat = (t.category || "").toLowerCase();
-    return dir.match(/internal|transfer between/) || cat.match(/transfer.*between|internal.*transfer/) || cat.match(/time deposit/);
+    return dir === "internal transfer";
   };
 
   const flowTxns = active.filter(t => !isExcluded(t));
