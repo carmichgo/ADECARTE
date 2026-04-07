@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.beneficiary && t.beneficiary !== "").slice(0, 20);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 100;
+  const batchSize = 30;
   const maxPerCall = 100;
   let totalExtracted = 0;
 
@@ -63,7 +63,7 @@ Respond with ONLY a JSON array:
     try {
       const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
 

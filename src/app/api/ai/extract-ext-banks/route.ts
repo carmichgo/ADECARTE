@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.ext_bank && t.ext_bank !== "").slice(0, 15);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 100;
+  const batchSize = 30;
   const maxPerCall = 100;
   let totalExtracted = 0;
+  const errors: string[] = [];
 
   for (let i = 0; i < Math.min(empty.length, maxPerCall); i += batchSize) {
     const batch = empty.slice(i, i + batchSize);
@@ -62,7 +63,7 @@ Respond with ONLY a JSON array: [{"id": number, "ext_bank": "bank name or empty"
     try {
       const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -76,16 +77,17 @@ Respond with ONLY a JSON array: [{"id": number, "ext_bank": "bank name or empty"
           totalExtracted++;
         }
       }
-    } catch (err) {
-      console.error("Ext bank extraction error:", err);
+    } catch (err: any) {
+      errors.push(`Batch ${i}: ${err.message || String(err)}`);
       continue;
     }
   }
 
   return NextResponse.json({
-    message: `Identified external banks for ${totalExtracted} of ${Math.min(empty.length, maxPerCall)} transactions (${empty.length} total empty).`,
+    message: `Identified external banks for ${totalExtracted} of ${Math.min(empty.length, maxPerCall)} transactions (${empty.length} total empty).${errors.length > 0 ? ` Errors: ${errors.join("; ")}` : ""}`,
     extracted: totalExtracted,
     remaining: empty.length - Math.min(empty.length, maxPerCall),
     done: empty.length <= maxPerCall,
+    errors,
   });
 }
