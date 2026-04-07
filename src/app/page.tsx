@@ -743,29 +743,46 @@ export default function Home() {
     setExtBankLoading(true);
     let totalExtracted = 0;
     let round = 0;
-    let remaining = -1;
+    let consecutiveZeros = 0;
     while (true) {
       round++;
-      setExtBankStatus(`Batch ${round}: AI is identifying external banks... (${totalExtracted} done so far${remaining > 0 ? `, ~${remaining} remaining` : ""})`);
+      setExtBankStatus(`Batch ${round}: Processing... (${totalExtracted} identified so far)`);
       try {
         const res = await fetch("/api/ai/extract-ext-banks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
+          body: JSON.stringify({ instructions: aiInstructions || "", context: (investigationContext || "") + (accountContextForAI || "") }),
         });
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
-        if (data.error) { setExtBankStatus("Error: " + data.error); break; }
+        if (!res.ok) {
+          const errText = await res.text();
+          setExtBankStatus(`Error (HTTP ${res.status}): ${errText.slice(0, 200)}`);
+          break;
+        }
+        const data = await res.json();
+        if (data.error) { setExtBankStatus(`Error: ${data.error}`); break; }
         const batchExtracted = data.extracted || 0;
         totalExtracted += batchExtracted;
-        remaining = data.remaining || 0;
-        if (data.done || data.remaining === 0 || batchExtracted === 0) {
-          setExtBankStatus(`Done! Identified external banks for ${totalExtracted} transactions across ${round} batches.${batchExtracted === 0 && remaining > 0 ? ` (${remaining} could not be identified)` : ""}`);
+        const remaining = data.remaining ?? 0;
+        setExtBankStatus(`Batch ${round} done: +${batchExtracted} identified (${totalExtracted} total, ${remaining} remaining)`);
+        if (data.done) {
+          setExtBankStatus(`Complete! Identified external banks for ${totalExtracted} transactions across ${round} batches.`);
           loadTransactions();
           break;
         }
-      } catch (err: any) { setExtBankStatus("Error: " + err.message); break; }
+        if (batchExtracted === 0) {
+          consecutiveZeros++;
+          if (consecutiveZeros >= 2) {
+            setExtBankStatus(`Stopped after ${round} batches. ${totalExtracted} identified. ${remaining} remaining could not be identified.`);
+            loadTransactions();
+            break;
+          }
+        } else {
+          consecutiveZeros = 0;
+        }
+      } catch (err: any) {
+        setExtBankStatus(`Network error on batch ${round}: ${err.message}. ${totalExtracted} identified so far.`);
+        break;
+      }
     }
     setExtBankLoading(false);
   };
