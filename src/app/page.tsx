@@ -141,6 +141,7 @@ export default function Home() {
   const [clusterWindowDays, setClusterWindowDays] = useState(7);
   const [clusterFlagFilter, setClusterFlagFilter] = useState<string>("all");
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
+  const [fraudBankFilter, setFraudBankFilter] = useState("all");
   const [fraudBeneficiaryFilter, setFraudBeneficiaryFilter] = useState("");
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
@@ -3078,10 +3079,12 @@ export default function Home() {
                     Only transactions flagged as <span className="text-red-600 font-semibold">VERIFIED FRAUD</span> are included.
                   </p>
                   {(() => {
-                    const fraudTxns = analyticsData.fraud_transactions || [];
-                    if (fraudTxns.length === 0) {
+                    const allFraudTxns = analyticsData.fraud_transactions || [];
+                    if (allFraudTxns.length === 0) {
                       return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No verified fraud transactions found. Mark transactions as "Verified Fraud" in the flag field to see impact analysis.</p>;
                     }
+                    const fraudBanks: string[] = [...new Set(allFraudTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
+                    const fraudTxns = fraudBankFilter === "all" ? allFraudTxns : allFraudTxns.filter((t: any) => (t.bank || "Unknown") === fraudBankFilter);
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
@@ -3099,11 +3102,21 @@ export default function Home() {
                     return (<>
                     {/* Yield config */}
                     <div className="mb-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
-                        <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
-                          onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
+                      <div className="flex items-center gap-3 mb-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-[var(--text-muted)]">Bank:</label>
+                          <select value={fraudBankFilter} onChange={e => setFraudBankFilter(e.target.value)}
+                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                            <option value="all">All Banks</option>
+                            {fraudBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
+                          <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
+                            onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
+                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
+                        </div>
                       </div>
                       {strategies.length > 1 && (
                         <div className="border border-[var(--border)] rounded-xl p-3">
