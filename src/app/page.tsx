@@ -740,19 +740,31 @@ export default function Home() {
 
   const fillExtBanks = async () => {
     setExtBankLoading(true);
-    setExtBankStatus("AI is identifying external banks...");
-    try {
-      const res = await fetch("/api/ai/extract-ext-banks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
-      });
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
-      if (data.error) setExtBankStatus("Error: " + data.error);
-      else { setExtBankStatus(data.message); loadTransactions(); }
-    } catch (err: any) { setExtBankStatus("Error: " + err.message); }
+    let totalExtracted = 0;
+    let round = 0;
+    let remaining = -1;
+    while (true) {
+      round++;
+      setExtBankStatus(`Batch ${round}: AI is identifying external banks... (${totalExtracted} done so far${remaining > 0 ? `, ~${remaining} remaining` : ""})`);
+      try {
+        const res = await fetch("/api/ai/extract-ext-banks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instructions: aiInstructions, context: investigationContext + accountContextForAI }),
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
+        if (data.error) { setExtBankStatus("Error: " + data.error); break; }
+        totalExtracted += data.extracted || 0;
+        remaining = data.remaining || 0;
+        if (data.done || data.remaining === 0) {
+          setExtBankStatus(`Done! Identified external banks for ${totalExtracted} transactions across ${round} batches.`);
+          loadTransactions();
+          break;
+        }
+      } catch (err: any) { setExtBankStatus("Error: " + err.message); break; }
+    }
     setExtBankLoading(false);
   };
 
