@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, description, counterparty, beneficiary, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
+    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, bank, description, counterparty, beneficiary, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
 
     if (!txns || txns.length === 0) {
       return NextResponse.json({
