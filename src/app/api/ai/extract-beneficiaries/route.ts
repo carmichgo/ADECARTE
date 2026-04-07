@@ -23,12 +23,11 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.beneficiary && t.beneficiary !== "").slice(0, 20);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 30;
-  const maxPerCall = 100;
+  const batchSize = 50;
   let totalExtracted = 0;
 
-  for (let i = 0; i < Math.min(empty.length, maxPerCall); i += batchSize) {
-    const batch = empty.slice(i, i + batchSize);
+  {
+    const batch = empty.slice(0, batchSize);
     const txnList = batch.map(t => ({
       id: t.id, description: t.description, amount: t.amount,
       counterparty: t.counterparty, direction: t.direction,
@@ -77,16 +76,20 @@ Respond with ONLY a JSON array:
           totalExtracted++;
         }
       }
-    } catch (err) {
-      console.error("Beneficiary extraction error:", err);
-      continue;
+    } catch (err: any) {
+      return NextResponse.json({
+        error: `AI call failed: ${err.message || String(err)}`,
+        extracted: 0,
+        remaining: empty.length,
+        done: false,
+      });
     }
   }
 
   return NextResponse.json({
-    message: `Identified beneficiaries for ${totalExtracted} of ${Math.min(empty.length, maxPerCall)} transactions (${empty.length} total empty).`,
+    message: `Identified beneficiaries for ${totalExtracted} of ${Math.min(empty.length, batchSize)} transactions (${empty.length} total empty).`,
     extracted: totalExtracted,
-    remaining: empty.length - Math.min(empty.length, maxPerCall),
-    done: empty.length <= maxPerCall,
+    remaining: empty.length - Math.min(empty.length, batchSize),
+    done: empty.length <= batchSize,
   });
 }

@@ -21,23 +21,20 @@ export async function POST(req: NextRequest) {
   const examples = allTxns.filter(t => t.ext_bank && t.ext_bank !== "").slice(0, 15);
 
   const client = new Anthropic({ apiKey });
-  const batchSize = 30;
-  const maxPerCall = 100;
+  const batchSize = 50;
+  const toProcess = empty.slice(0, batchSize);
   let totalExtracted = 0;
-  const errors: string[] = [];
 
-  for (let i = 0; i < Math.min(empty.length, maxPerCall); i += batchSize) {
-    const batch = empty.slice(i, i + batchSize);
-    const txnList = batch.map(t => ({
-      id: t.id, desc: (t.description || "").slice(0, 100), amount: t.amount,
-      cp: t.counterparty, dir: t.direction, bank: t.bank,
-    }));
+  const txnList = toProcess.map(t => ({
+    id: t.id, desc: (t.description || "").slice(0, 100), amount: t.amount,
+    cp: t.counterparty, dir: t.direction, bank: t.bank,
+  }));
 
-    const exampleText = examples.length > 0
-      ? `\n## EXAMPLES\n${JSON.stringify(examples.slice(0, 8).map(e => ({ desc: (e.description || "").slice(0, 80), cp: e.counterparty, dir: e.direction, ext_bank: e.ext_bank })), null, 2)}\n`
-      : "";
+  const exampleText = examples.length > 0
+    ? `\n## EXAMPLES\n${JSON.stringify(examples.slice(0, 8).map(e => ({ desc: (e.description || "").slice(0, 80), cp: e.counterparty, dir: e.direction, ext_bank: e.ext_bank })), null, 2)}\n`
+    : "";
 
-    const prompt = `Extract the EXTERNAL BANK from each transaction description.
+  const prompt = `Extract the EXTERNAL BANK from each transaction description.
 ${context ? `\n## CONTEXT\n${context}\n` : ""}${instructions ? `\n## INSTRUCTIONS\n${instructions}\n` : ""}${exampleText}
 ## RULES
 - For WITHDRAWALS: identify the RECEIVING bank (where money went)
@@ -60,34 +57,36 @@ ${JSON.stringify(txnList, null, 2)}
 
 Respond with ONLY a JSON array: [{"id": number, "ext_bank": "bank name or empty"}]`;
 
-    try {
-      const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-      });
+  try {
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-      let text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
-      if (text.startsWith("```")) text = text.split("\n").slice(1).join("\n").replace(/```\s*$/, "");
-      const results = JSON.parse(text);
+    let text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+    if (text.startsWith("```")) text = text.split("\n").slice(1).join("\n").replace(/```\s*$/, "");
+    const results = JSON.parse(text);
 
-      for (const r of results) {
-        if (r.ext_bank) {
-          await db.from("transactions").update({ ext_bank: r.ext_bank }).eq("id", r.id);
-          totalExtracted++;
-        }
+    for (const r of results) {
+      if (r.ext_bank) {
+        await db.from("transactions").update({ ext_bank: r.ext_bank }).eq("id", r.id);
+        totalExtracted++;
       }
-    } catch (err: any) {
-      errors.push(`Batch ${i}: ${err.message || String(err)}`);
-      continue;
     }
+  } catch (err: any) {
+    return NextResponse.json({
+      error: `AI call failed: ${err.message || String(err)}`,
+      extracted: 0,
+      remaining: empty.length,
+      done: false,
+    });
   }
 
   return NextResponse.json({
-    message: `Identified external banks for ${totalExtracted} of ${Math.min(empty.length, maxPerCall)} transactions (${empty.length} total empty).${errors.length > 0 ? ` Errors: ${errors.join("; ")}` : ""}`,
+    message: `Identified external banks for ${totalExtracted} of ${toProcess.length} transactions (${empty.length} total empty).`,
     extracted: totalExtracted,
-    remaining: empty.length - Math.min(empty.length, maxPerCall),
-    done: empty.length <= maxPerCall,
-    errors,
+    remaining: empty.length - toProcess.length,
+    done: empty.length <= batchSize,
   });
 }
