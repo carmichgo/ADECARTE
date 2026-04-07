@@ -111,7 +111,7 @@ export default function Home() {
   const [brushRange, setBrushRange] = useState<{ start: number; end: number } | null>(null);
   const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [drillCounterparty, setDrillCounterparty] = useState<string | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "tools" | "flow">("overview");
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "counterparties" | "fraud" | "pv" | "tools" | "flow">("overview");
   const [traceData, setTraceData] = useState<any>(null);
   const [traceLoading, setTraceLoading] = useState(false);
   const [sankeyData, setSankeyData] = useState<any>(null);
@@ -143,6 +143,10 @@ export default function Home() {
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
   const [fraudBankFilter, setFraudBankFilter] = useState("all");
   const [fraudBeneficiaryFilter, setFraudBeneficiaryFilter] = useState("");
+  const [pvReturnRate, setPvReturnRate] = useState(7);
+  const [pvBankFilter, setPvBankFilter] = useState("all");
+  const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
+  const [pvFlagFilter, setPvFlagFilter] = useState("all");
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
       try { return JSON.parse(localStorage.getItem("adecarte_strategy_yields") || "{}"); } catch { return {}; }
@@ -2267,7 +2271,7 @@ export default function Home() {
                 ["counterparties", "Receiving Entities"],
                 ["flow", "Money Flow"],
                 ["fraud", "Fraud Impact"],
-                ["flow", "Money Flow"],
+                ["pv", "Present Value"],
                 ["tools", "AI Tools"],
               ] as [typeof analyticsTab, string][]).map(([key, label]) => (
                 <button key={key} onClick={() => setAnalyticsTab(key)}
@@ -3297,6 +3301,208 @@ export default function Home() {
                     );
                   })()}
                   </>)
+                  })()}
+                </div>
+                </>)}
+
+                {/* === Present Value Tab === */}
+                {analyticsTab === "pv" && (<>
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 mb-6">
+                  <h3 className="font-semibold mb-1">Present Value Analysis — All Withdrawals</h3>
+                  <p className="text-xs text-[var(--text-muted)] mb-3">
+                    If money that left the accounts had stayed invested, what would it be worth today?
+                    Includes all withdrawals (fraud and non-fraud). Use filters to analyze specific segments.
+                  </p>
+                  {(() => {
+                    const allWithdrawals = analyticsData.all_withdrawals || [];
+                    if (allWithdrawals.length === 0) {
+                      return <p className="text-[var(--text-muted)] text-sm py-8 text-center">No withdrawal transactions found.</p>;
+                    }
+                    const pvBanks: string[] = [...new Set(allWithdrawals.map((t: any) => t.bank || "Unknown") as string[])].sort();
+                    const pvBeneficiariesList: string[] = [...new Set(allWithdrawals.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
+                    const pvFlags: string[] = [...new Set(allWithdrawals.map((t: any) => t.flag || "normal") as string[])].sort();
+                    const pvTxns = allWithdrawals
+                      .filter((t: any) => pvBankFilter === "all" || (t.bank || "Unknown") === pvBankFilter)
+                      .filter((t: any) => pvBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === pvBeneficiaryFilter)
+                      .filter((t: any) => pvFlagFilter === "all" || (t.flag || "normal") === pvFlagFilter);
+
+                    if (pvTxns.length === 0) {
+                      return (<>
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-[var(--text-muted)]">Bank:</label>
+                            <select value={pvBankFilter} onChange={e => setPvBankFilter(e.target.value)}
+                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                              <option value="all">All Banks</option>
+                              {pvBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                            <select value={pvBeneficiaryFilter} onChange={e => setPvBeneficiaryFilter(e.target.value)}
+                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                              <option value="">All Beneficiaries</option>
+                              {pvBeneficiariesList.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-[var(--text-muted)]">Flag:</label>
+                            <select value={pvFlagFilter} onChange={e => setPvFlagFilter(e.target.value)}
+                              className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                              <option value="all">All Flags</option>
+                              {pvFlags.map(f => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <p className="text-[var(--text-muted)] text-sm py-4 text-center">No transactions match the current filters.</p>
+                      </>);
+                    }
+
+                    const today = new Date();
+                    const rate = pvReturnRate / 100;
+                    const pvWithCalc = pvTxns.map((t: any) => {
+                      const txnDate = new Date(t.date);
+                      const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const presentValue = t.amount * Math.pow(1 + rate, days / 365);
+                      const growth = presentValue - t.amount;
+                      return { ...t, days: Math.round(days), presentValue, growth };
+                    });
+
+                    const totalAmount = pvWithCalc.reduce((s: number, t: any) => s + t.amount, 0);
+                    const totalPV = pvWithCalc.reduce((s: number, t: any) => s + t.presentValue, 0);
+                    const totalGrowth = totalPV - totalAmount;
+
+                    // Group by beneficiary for summary
+                    const byBeneficiary: Record<string, { amount: number; pv: number; count: number }> = {};
+                    pvWithCalc.forEach((t: any) => {
+                      const key = t.beneficiary || "Unknown";
+                      if (!byBeneficiary[key]) byBeneficiary[key] = { amount: 0, pv: 0, count: 0 };
+                      byBeneficiary[key].amount += t.amount;
+                      byBeneficiary[key].pv += t.presentValue;
+                      byBeneficiary[key].count++;
+                    });
+                    const sortedBeneficiaries = Object.entries(byBeneficiary).sort((a, b) => b[1].pv - a[1].pv);
+
+                    return (<>
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Bank:</label>
+                        <select value={pvBankFilter} onChange={e => setPvBankFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                          <option value="all">All Banks</option>
+                          {pvBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                        <select value={pvBeneficiaryFilter} onChange={e => setPvBeneficiaryFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                          <option value="">All Beneficiaries</option>
+                          {pvBeneficiariesList.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Flag:</label>
+                        <select value={pvFlagFilter} onChange={e => setPvFlagFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                          <option value="all">All Flags</option>
+                          {pvFlags.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Annual return (%):</label>
+                        <input type="number" min={0} max={100} step={0.5} value={pvReturnRate}
+                          onChange={e => setPvReturnRate(Number(e.target.value) || 0)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
+                      </div>
+                    </div>
+
+                    {/* Summary cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Total Withdrawn</div>
+                        <div className="text-lg font-bold text-[var(--text)]">{fmt(totalAmount)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">{pvWithCalc.length} transactions</div>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
+                        <div className="text-lg font-bold text-[var(--text)]">{fmt(totalPV)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">at {pvReturnRate}% annual</div>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Growth (Lost)</div>
+                        <div className="text-lg font-bold text-amber-600">{fmt(totalGrowth)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">opportunity cost</div>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
+                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Unique Beneficiaries</div>
+                        <div className="text-lg font-bold text-[var(--text)]">{sortedBeneficiaries.length}</div>
+                      </div>
+                    </div>
+
+                    {/* By beneficiary summary */}
+                    <div className="border border-[var(--border)] rounded-xl overflow-hidden mb-5">
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-[var(--bg-muted)] text-[var(--text-muted)]">
+                          <th className="px-3 py-2 text-left">Beneficiary</th>
+                          <th className="px-3 py-2 text-right"># Txns</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                          <th className="px-3 py-2 text-right">Present Value</th>
+                          <th className="px-3 py-2 text-right">Growth</th>
+                        </tr></thead>
+                        <tbody>
+                          {sortedBeneficiaries.slice(0, 30).map(([name, data]) => (
+                            <tr key={name} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                              <td className="px-3 py-1.5 font-medium">{name}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{data.count}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.amount)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.pv)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-amber-600">{fmt(data.pv - data.amount)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t-2 border-[var(--border)] font-bold">
+                            <td className="px-3 py-2">TOTAL</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{pvWithCalc.length}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{fmt(totalAmount)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{fmt(totalPV)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-amber-600">{fmt(totalGrowth)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Transaction detail table */}
+                    <div className="border border-[var(--border)] rounded-xl overflow-auto max-h-[400px]">
+                      <table className="w-full text-[11px]">
+                        <thead className="sticky top-0 bg-[var(--bg-muted)]"><tr className="text-[var(--text-muted)]">
+                          <th className="px-2 py-2 text-left">Date</th>
+                          <th className="px-2 py-2 text-left">Account</th>
+                          <th className="px-2 py-2 text-left">Description</th>
+                          <th className="px-2 py-2 text-left">Beneficiary</th>
+                          <th className="px-2 py-2 text-left">Flag</th>
+                          <th className="px-2 py-2 text-right">Amount</th>
+                          <th className="px-2 py-2 text-right">Days</th>
+                          <th className="px-2 py-2 text-right">Present Value</th>
+                          <th className="px-2 py-2 text-right">Growth</th>
+                        </tr></thead>
+                        <tbody>
+                          {pvWithCalc.map((t: any) => (
+                            <tr key={t.id} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                              <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">{t.account}</td>
+                              <td className="px-2 py-1.5 max-w-[250px] truncate" title={t.description}>{(t.description || "").slice(0, 60)}</td>
+                              <td className="px-2 py-1.5">{t.beneficiary || "-"}</td>
+                              <td className="px-2 py-1.5"><FlagBadge flag={t.flag} /></td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.amount)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{t.days}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.presentValue)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-amber-600">{fmt(t.growth)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    </>);
                   })()}
                 </div>
                 </>)}

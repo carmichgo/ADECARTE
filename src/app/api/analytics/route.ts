@@ -133,6 +133,19 @@ export async function GET(req: NextRequest) {
         description: t.description, counterparty: t.counterparty,
         account: t.account || t.account_name, bank: t.bank || "",
         strategy: t.strategy || "", beneficiary: t.beneficiary || "",
+        flag: t.flag || "",
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // ── 6. All withdrawals for present value analysis ─────────
+    const allWithdrawals = txns
+      .filter(t => (t.amount || 0) < 0 && (t.direction || "").toLowerCase() === "withdraw" && t.flag !== "disqualified")
+      .map(t => ({
+        id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
+        description: t.description, counterparty: t.counterparty,
+        account: t.account || t.account_name, bank: t.bank || "",
+        strategy: t.strategy || "", beneficiary: t.beneficiary || "",
+        flag: t.flag || "", category: t.category || "",
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -141,6 +154,7 @@ export async function GET(req: NextRequest) {
       balance_by_account: balanceByAccount,
       transaction_counts: transactionCounts,
       fraud_transactions: fraudTxns,
+      all_withdrawals: allWithdrawals,
       raw_transactions: rawForAi,
     });
   } catch (err: any) {
