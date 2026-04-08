@@ -23,8 +23,6 @@ export async function GET(req: NextRequest) {
       }
       if (p.get("min_amount")) query = query.gte("amount", parseFloat(p.get("min_amount")!));
       if (p.get("max_amount")) query = query.lte("amount", parseFloat(p.get("max_amount")!));
-      if (p.get("date_from")) query = query.gte("date", p.get("date_from")!);
-      if (p.get("date_to")) query = query.lte("date", p.get("date_to")!);
       if (p.get("bank")) query = query.eq("bank", p.get("bank")!);
       if (p.get("account")) query = query.eq("account", p.get("account")!);
       if (p.get("direction")) query = query.eq("direction", p.get("direction")!);

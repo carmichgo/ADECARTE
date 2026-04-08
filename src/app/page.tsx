@@ -183,8 +183,6 @@ export default function Home() {
     if (filters.direction) q.set("direction", filters.direction);
     if (filters.counterparty) q.set("counterparty", filters.counterparty);
     if (filters.beneficiary) q.set("beneficiary", filters.beneficiary);
-    if (filters.dateFrom) q.set("date_from", filters.dateFrom);
-    if (filters.dateTo) q.set("date_to", filters.dateTo);
     if (filters.source) q.set("categorized_by", filters.source);
     if (filters.extBank) q.set("ext_bank", filters.extBank);
     q.set("order", "id");
@@ -209,6 +207,15 @@ export default function Home() {
     if (filters.excludeFlags.length > 0) filtered = filtered.filter(t => !filters.excludeFlags.includes(t.flag || ""));
     if (filters.min) { const min = parseFloat(filters.min); filtered = filtered.filter(t => Math.abs(t.amount || 0) >= min); }
     if (filters.max) { const max = parseFloat(filters.max); filtered = filtered.filter(t => Math.abs(t.amount || 0) <= max); }
+    if (filters.dateFrom || filters.dateTo) {
+      filtered = filtered.filter(t => {
+        const d = new Date(t.date);
+        if (isNaN(d.getTime())) return false;
+        if (filters.dateFrom && d < new Date(filters.dateFrom)) return false;
+        if (filters.dateTo && d > new Date(filters.dateTo + "T23:59:59")) return false;
+        return true;
+      });
+    }
     setTransactions(filtered);
     setSelectedIds(new Set());
   }, [filters, sort]);
