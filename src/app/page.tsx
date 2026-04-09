@@ -96,6 +96,7 @@ export default function Home() {
   const [bulkFlag, setBulkFlag] = useState("");
   const [bulkDirection, setBulkDirection] = useState("");
   const [bulkBeneficiary, setBulkBeneficiary] = useState("");
+  const [bulkExtBank, setBulkExtBank] = useState("");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [partyLoading, setPartyLoading] = useState(false);
   const [partyStatus, setPartyStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -697,6 +698,7 @@ export default function Home() {
     if (bulkFlag) updates.flag = bulkFlag;
     if (bulkDirection) updates.direction = bulkDirection;
     if (bulkBeneficiary) updates.beneficiary = bulkBeneficiary;
+    if (bulkExtBank) updates.ext_bank = bulkExtBank;
     if (Object.keys(updates).length === 0) return;
     await fetch("/api/transactions/bulk-update", {
       method: "POST",
@@ -705,7 +707,7 @@ export default function Home() {
     });
     loadTransactions();
     loadStats();
-    setBulkCategory(""); setBulkFlag(""); setBulkDirection(""); setBulkBeneficiary("");
+    setBulkCategory(""); setBulkFlag(""); setBulkDirection(""); setBulkBeneficiary(""); setBulkExtBank("");
   };
 
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
@@ -1710,6 +1712,8 @@ export default function Home() {
                 </select>
                 <input className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)] w-36"
                   placeholder="Set Beneficiary..." value={bulkBeneficiary} onChange={e => setBulkBeneficiary(e.target.value)} />
+                <input className="bg-[var(--bg)] ring-1 ring-[var(--border)] text-sm rounded-lg px-2.5 py-1.5 text-[var(--text)] w-36"
+                  placeholder="Set Ext Bank..." value={bulkExtBank} onChange={e => setBulkExtBank(e.target.value)} />
                 <button onClick={applyBulk} className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 transition-colors rounded text-sm">Apply</button>
                 <div className="h-4 w-px bg-[var(--border)]" />
                 <button onClick={bulkAiCategorize} disabled={bulkAiLoading}
