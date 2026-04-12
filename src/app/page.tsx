@@ -1996,7 +1996,7 @@ export default function Home() {
           const active = filtered.filter(t => t.flag !== "disqualified");
           const totalAmount = active.reduce((s, t) => s + Math.abs(t.amount || 0), 0);
           const verifiedCount = filtered.filter(t => t.flag === "verified_fraud").length;
-          const verifiedAmount = filtered.filter(t => t.flag === "verified_fraud" && (t.amount || 0) < 0 && (t.direction || "").toLowerCase() === "withdraw").reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const verifiedAmount = filtered.filter(t => t.flag === "verified_fraud" && (t.amount || 0) < 0 && (t.direction || "").toLowerCase() === "withdraw" && (t.category || "").toLowerCase() !== "unauthorized interbank transfer").reduce((s, t) => s + Math.abs(t.amount || 0), 0);
           const criticalCount = filtered.filter(t => t.flag === "critical").length;
           const suspiciousCount = filtered.filter(t => t.flag === "suspicious").length;
           const uniqueCounterparties = new Set(filtered.map(t => t.counterparty).filter(Boolean)).size;
