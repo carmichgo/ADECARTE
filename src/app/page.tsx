@@ -149,6 +149,7 @@ export default function Home() {
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
   const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
   const [pvFlagFilter, setPvFlagFilter] = useState("all");
+  const [pvDeselected, setPvDeselected] = useState<Set<number>>(new Set());
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
       try { return JSON.parse(localStorage.getItem("adecarte_strategy_yields") || "{}"); } catch { return {}; }
@@ -3345,11 +3346,12 @@ export default function Home() {
                     const pvAccounts: string[] = [...new Set(allPvTxns.map((t: any) => t.account || "Unknown") as string[])].sort();
                     const pvBeneficiariesList: string[] = [...new Set(allPvTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
                     const pvCounterparties: string[] = [...new Set(allPvTxns.map((t: any) => t.counterparty || "Unknown") as string[])].sort();
-                    const pvTxns = allPvTxns
+                    const pvTxnsFiltered = allPvTxns
                       .filter((t: any) => pvBankFilter === "all" || (t.bank || "Unknown") === pvBankFilter)
                       .filter((t: any) => pvFlagFilter === "all" || pvFlagFilter === "" || (t.account || "Unknown") === pvFlagFilter)
                       .filter((t: any) => pvBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === pvBeneficiaryFilter)
                       .filter((t: any) => pvCounterpartyFilter === "" || (t.counterparty || "Unknown") === pvCounterpartyFilter);
+                    const pvTxns = pvTxnsFiltered.filter((t: any) => !pvDeselected.has(t.id));
 
                     const today = new Date();
                     const rate = pvReturnRate / 100;
@@ -3527,43 +3529,79 @@ export default function Home() {
                     </div>
 
                     {/* Transaction ledger */}
-                    <h4 className="text-sm font-semibold mt-6 mb-2">Compounding Ledger</h4>
+                    <div className="flex items-center justify-between mt-6 mb-2">
+                      <h4 className="text-sm font-semibold">Compounding Ledger</h4>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        {pvDeselected.size > 0 && (
+                          <>
+                            <span className="text-amber-600">{pvDeselected.size} excluded</span>
+                            <button
+                              className="px-2 py-1 bg-[var(--bg-muted)] border border-[var(--border)] rounded hover:bg-[var(--bg)]"
+                              onClick={() => setPvDeselected(new Set())}
+                            >Reset selection</button>
+                          </>
+                        )}
+                        <button
+                          className="px-2 py-1 bg-[var(--bg-muted)] border border-[var(--border)] rounded hover:bg-[var(--bg)]"
+                          onClick={() => {
+                            const idsToDeselect = new Set<number>(pvTxnsFiltered.map((t: any) => t.id as number));
+                            setPvDeselected(idsToDeselect);
+                          }}
+                        >Deselect all shown</button>
+                      </div>
+                    </div>
                     <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                      Shows how the invested balance changes at each transaction. "Compound Gain" = interest earned since the previous transaction.
+                      Uncheck rows to exclude them from the present value calculation. "Compound Gain" = interest earned since the previous transaction.
                       {finalDays > 0 && <> Final compounding: {Math.round(finalDays)} days from last txn to today → {fmt(preFinal)} → {fmt(totalCompounded)} (+{fmt(totalCompounded - preFinal)})</>}
                     </p>
-                    <div className="border border-[var(--border)] rounded-xl overflow-auto max-h-[500px]">
-                      <table className="w-full text-[11px]">
-                        <thead className="sticky top-0 bg-[var(--bg-muted)]"><tr className="text-[var(--text-muted)]">
-                          <th className="px-2 py-2 text-left">Date</th>
-                          <th className="px-2 py-2 text-left">Account</th>
-                          <th className="px-2 py-2 text-left">Description</th>
-                          <th className="px-2 py-2 text-right">Amount</th>
-                          <th className="px-2 py-2 text-right">Age (days)</th>
-                          <th className="px-2 py-2 text-right">Gap</th>
-                          <th className="px-2 py-2 text-right">Compound Gain</th>
-                          <th className="px-2 py-2 text-right">Invested Before</th>
-                          <th className="px-2 py-2 text-right">Invested After</th>
-                          <th className="px-2 py-2 text-right">Actual Balance</th>
-                        </tr></thead>
-                        <tbody>
-                          {ledger.map((t: any) => (
-                            <tr key={t.id} className={`border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] ${t.amount < 0 ? "bg-red-50/30" : ""}`}>
-                              <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
-                              <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{t.account}</td>
-                              <td className="px-2 py-1.5 max-w-[200px] truncate" title={t.description}>{(t.description || "").slice(0, 50)}</td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{t.daysToToday}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{t.daysSincePrev || "-"}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums text-indigo-500">{t.compoundGain > 0 ? `+${fmt(t.compoundGain)}` : "-"}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{fmt(t.balanceBefore)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(t.balanceAfter)}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{fmt(t.actualBalance)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    {(() => {
+                      const ledgerMap = new Map<number, any>();
+                      ledger.forEach((row: any) => ledgerMap.set(row.id, row));
+                      const combined = [...pvTxnsFiltered].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                      return (
+                      <div className="border border-[var(--border)] rounded-xl overflow-auto max-h-[500px]">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-[var(--bg-muted)]"><tr className="text-[var(--text-muted)]">
+                            <th className="px-2 py-2 w-8"></th>
+                            <th className="px-2 py-2 text-left">Date</th>
+                            <th className="px-2 py-2 text-left">Account</th>
+                            <th className="px-2 py-2 text-left">Description</th>
+                            <th className="px-2 py-2 text-right">Amount</th>
+                            <th className="px-2 py-2 text-right">Age (days)</th>
+                            <th className="px-2 py-2 text-right">Gap</th>
+                            <th className="px-2 py-2 text-right">Compound Gain</th>
+                            <th className="px-2 py-2 text-right">Invested Before</th>
+                            <th className="px-2 py-2 text-right">Invested After</th>
+                          </tr></thead>
+                          <tbody>
+                            {combined.map((t: any) => {
+                              const isDeselected = pvDeselected.has(t.id);
+                              const row = ledgerMap.get(t.id);
+                              return (
+                              <tr key={t.id} className={`border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] ${isDeselected ? "opacity-40 bg-[var(--bg-muted)]" : t.amount < 0 ? "bg-red-50/30" : ""}`}>
+                                <td className="px-2 py-1.5 text-center">
+                                  <input type="checkbox" checked={!isDeselected}
+                                    onChange={e => {
+                                      const next = new Set(pvDeselected);
+                                      if (e.target.checked) next.delete(t.id); else next.add(t.id);
+                                      setPvDeselected(next);
+                                    }} />
+                                </td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{t.date}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{t.account}</td>
+                                <td className="px-2 py-1.5 max-w-[200px] truncate" title={t.description}>{(t.description || "").slice(0, 50)}</td>
+                                <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${t.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>{fmt(t.amount)}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{row ? row.daysToToday : "-"}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums text-[var(--text-muted)]">{row ? (row.daysSincePrev || "-") : "-"}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums text-indigo-500">{row && row.compoundGain > 0 ? `+${fmt(row.compoundGain)}` : "-"}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{row ? fmt(row.balanceBefore) : "-"}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums font-medium">{row ? fmt(row.balanceAfter) : "-"}</td>
+                              </tr>);
+                            })}
+                          </tbody>
+                        </table>
+                      </div>);
+                    })()}
                     </>);
                   })()}
                 </div>
