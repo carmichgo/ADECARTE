@@ -149,6 +149,7 @@ export default function Home() {
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
   const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
   const [pvFlagFilter, setPvFlagFilter] = useState("all");
+  const [pvIncludedFlags, setPvIncludedFlags] = useState<Set<string>>(new Set(["normal", "", "review", "suspicious", "critical"]));
   const [pvDeselected, setPvDeselected] = useState<Set<number>>(new Set());
   const [strategyYields, setStrategyYields] = useState<Record<string, number>>(() => {
     if (typeof window !== "undefined") {
@@ -3346,11 +3347,13 @@ export default function Home() {
                     const pvAccounts: string[] = [...new Set(allPvTxns.map((t: any) => t.account || "Unknown") as string[])].sort();
                     const pvBeneficiariesList: string[] = [...new Set(allPvTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
                     const pvCounterparties: string[] = [...new Set(allPvTxns.map((t: any) => t.counterparty || "Unknown") as string[])].sort();
+                    const pvFlagsAvailable: string[] = [...new Set(allPvTxns.map((t: any) => t.flag || "") as string[])].sort();
                     const pvTxnsFiltered = allPvTxns
                       .filter((t: any) => pvBankFilter === "all" || (t.bank || "Unknown") === pvBankFilter)
                       .filter((t: any) => pvFlagFilter === "all" || pvFlagFilter === "" || (t.account || "Unknown") === pvFlagFilter)
                       .filter((t: any) => pvBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === pvBeneficiaryFilter)
-                      .filter((t: any) => pvCounterpartyFilter === "" || (t.counterparty || "Unknown") === pvCounterpartyFilter);
+                      .filter((t: any) => pvCounterpartyFilter === "" || (t.counterparty || "Unknown") === pvCounterpartyFilter)
+                      .filter((t: any) => pvIncludedFlags.has(t.flag || ""));
                     const pvTxns = pvTxnsFiltered.filter((t: any) => !pvDeselected.has(t.id));
 
                     const today = new Date();
@@ -3471,6 +3474,33 @@ export default function Home() {
                           onChange={e => setPvReturnRate(Number(e.target.value) || 0)}
                           className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
                       </div>
+                    </div>
+
+                    {/* Flag inclusion filter */}
+                    <div className="flex items-center gap-3 mb-4 flex-wrap border border-[var(--border)] rounded-lg px-3 py-2">
+                      <span className="text-xs text-[var(--text-muted)] font-semibold">Include flags:</span>
+                      {pvFlagsAvailable.map(f => (
+                        <label key={f} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <input type="checkbox" checked={pvIncludedFlags.has(f)}
+                            onChange={e => {
+                              const next = new Set(pvIncludedFlags);
+                              if (e.target.checked) next.add(f); else next.delete(f);
+                              setPvIncludedFlags(next);
+                            }} />
+                          <span className={
+                            f === "verified_fraud" ? "text-red-600 font-semibold" :
+                            f === "critical" ? "text-red-500" :
+                            f === "suspicious" ? "text-amber-600" :
+                            f === "review" ? "text-blue-500" :
+                            f === "disqualified" ? "text-gray-400" :
+                            "text-[var(--text)]"
+                          }>{f || "(unflagged)"}</span>
+                        </label>
+                      ))}
+                      <button className="text-[10px] px-2 py-1 bg-[var(--bg-muted)] border border-[var(--border)] rounded hover:bg-[var(--bg)]"
+                        onClick={() => setPvIncludedFlags(new Set(pvFlagsAvailable))}>All</button>
+                      <button className="text-[10px] px-2 py-1 bg-[var(--bg-muted)] border border-[var(--border)] rounded hover:bg-[var(--bg)]"
+                        onClick={() => setPvIncludedFlags(new Set())}>None</button>
                     </div>
 
                     {/* Summary cards */}

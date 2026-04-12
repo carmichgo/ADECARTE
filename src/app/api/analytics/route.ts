@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
       return (t.direction || "").toLowerCase() === "internal transfer";
     };
     const pvTransactions = activeTxns
-      .filter(t => !isExcludedPV(t) && (!t.flag || t.flag === "normal"))
+      .filter(t => !isExcludedPV(t))
       .map(t => ({
         id: t.id, date: t.date, amount: t.amount || 0,
         description: t.description, counterparty: t.counterparty,
