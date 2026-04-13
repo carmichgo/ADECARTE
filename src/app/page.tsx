@@ -46,14 +46,17 @@ type RateConfig = {
 };
 
 // Resolve the rate (as decimal) for a given strategy/year using this hierarchy:
-// 1. per-strategy-per-year  2. per-strategy flat  3. per-year  4. default
+// 1. per-strategy-per-year (most specific)
+// 2. per-year (yearly wins over strategy flat)
+// 3. per-strategy flat (fallback when no yearly)
+// 4. default
 function resolveRate(strategy: string, year: number, config: RateConfig): number {
   const sy = config.strategyYearlyRates[strategy]?.[year];
   if (sy != null) return sy / 100;
-  const s = config.strategyRates[strategy];
-  if (s != null) return s / 100;
   const y = config.yearlyRates[year];
   if (y != null) return y / 100;
+  const s = config.strategyRates[strategy];
+  if (s != null) return s / 100;
   return config.defaultRate;
 }
 
@@ -3280,20 +3283,7 @@ export default function Home() {
 
                     // Build counterfactual balance chart
                     const balData = filteredBalanceData;
-                    let cumFraudPV = 0;
-                    let fraudIdx = 0;
-                    const counterfactualData = balData.map((d: any, i: number) => {
-                      // Add any fraud txns on or before this date
-                      while (fraudIdx < fraudWithPV.length) {
-                        const fDate = new Date(fraudWithPV[fraudIdx].date);
-                        const dDate = new Date(d.raw_date);
-                        if (fDate <= dDate) {
-                          // Compound this fraud amount from its date to current chart date
-                          const daysSinceFraud = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
-                          cumFraudPV += fraudWithPV[fraudIdx].amount * Math.pow(1 + getRate(fraudWithPV[fraudIdx].strategy || "Default"), daysSinceFraud / 365);
-                          fraudIdx++;
-                        } else break;
-                      }
+                    const counterfactualData = balData.map((d: any) => {
                       // Recompute cumFraudPV: all fraud txns up to this date, compounded to this date
                       let recomputed = 0;
                       for (let fi = 0; fi < fraudWithPV.length; fi++) {
