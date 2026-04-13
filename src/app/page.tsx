@@ -38,9 +38,27 @@ const fmt = (n: number | null) => {
   return (n < 0 ? "-$" : "$") + abs;
 };
 
-// Compound a balance from one date to another, applying per-year rates.
-// Falls back to defaultRate (decimal, e.g. 0.07) for any year not in yearlyRates.
-function compoundWithYearlyRates(balance: number, fromDate: Date, toDate: Date, yearlyRates: Record<number, number>, defaultRate: number): number {
+type RateConfig = {
+  defaultRate: number; // decimal, e.g. 0.07
+  yearlyRates: Record<number, number>; // percent, year → rate
+  strategyRates: Record<string, number>; // percent, strategy → flat rate
+  strategyYearlyRates: Record<string, Record<number, number>>; // percent, strategy → year → rate
+};
+
+// Resolve the rate (as decimal) for a given strategy/year using this hierarchy:
+// 1. per-strategy-per-year  2. per-strategy flat  3. per-year  4. default
+function resolveRate(strategy: string, year: number, config: RateConfig): number {
+  const sy = config.strategyYearlyRates[strategy]?.[year];
+  if (sy != null) return sy / 100;
+  const s = config.strategyRates[strategy];
+  if (s != null) return s / 100;
+  const y = config.yearlyRates[year];
+  if (y != null) return y / 100;
+  return config.defaultRate;
+}
+
+// Compound a balance from one date to another, applying the rate hierarchy by year.
+function compoundBalance(balance: number, fromDate: Date, toDate: Date, strategy: string, config: RateConfig): number {
   if (balance <= 0 || toDate <= fromDate) return balance;
   const DAY_MS = 86400000;
   let current = balance;
@@ -50,12 +68,18 @@ function compoundWithYearlyRates(balance: number, fromDate: Date, toDate: Date, 
     const yearEnd = new Date(year + 1, 0, 1);
     const segmentEnd = yearEnd < toDate ? yearEnd : toDate;
     const days = (segmentEnd.getTime() - cursor.getTime()) / DAY_MS;
-    const ratePct = yearlyRates[year];
-    const rate = ratePct != null ? ratePct / 100 : defaultRate;
+    const rate = resolveRate(strategy, year, config);
     current *= Math.pow(1 + rate, days / 365);
     cursor = segmentEnd;
   }
   return current;
+}
+
+// Backward-compatible wrapper
+function compoundWithYearlyRates(balance: number, fromDate: Date, toDate: Date, yearlyRates: Record<number, number>, defaultRate: number): number {
+  return compoundBalance(balance, fromDate, toDate, "", {
+    defaultRate, yearlyRates, strategyRates: {}, strategyYearlyRates: {}
+  });
 }
 
 export default function Home() {
@@ -177,6 +201,26 @@ export default function Home() {
     }
     return {};
   });
+  const [pvStrategyYields, setPvStrategyYields] = useState<Record<string, number>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_pv_strategy_yields") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
+  const [pvStrategyYearlyRates, setPvStrategyYearlyRates] = useState<Record<string, Record<number, number>>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_pv_strategy_yearly_rates") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
+  const [fraudStrategyYearlyRates, setFraudStrategyYearlyRates] = useState<Record<string, Record<number, number>>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_fraud_strategy_yearly_rates") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
+  const [returnsPanelOpen, setReturnsPanelOpen] = useState(false);
+  const [returnsPanelScope, setReturnsPanelScope] = useState<"fraud" | "pv">("fraud");
   const [pvBankFilter, setPvBankFilter] = useState("all");
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
   const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
@@ -3181,99 +3225,51 @@ export default function Home() {
                     };
 
                     return (<>
-                    {/* Yield config */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-[var(--text-muted)]">Bank:</label>
-                          <select value={fraudBankFilter} onChange={e => setFraudBankFilter(e.target.value)}
-                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
-                            <option value="all">All Banks</option>
-                            {fraudBanks.map(b => <option key={b} value={b}>{b}</option>)}
-                          </select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
-                          <select value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}
-                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
-                            <option value="">All Beneficiaries</option>
-                            {fraudBeneficiaries.map(b => <option key={b} value={b}>{b}</option>)}
-                          </select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
-                          <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
-                            onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
-                            className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
-                        </div>
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Bank:</label>
+                        <select value={fraudBankFilter} onChange={e => setFraudBankFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm">
+                          <option value="all">All Banks</option>
+                          {fraudBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
                       </div>
-                      {(() => {
-                        const years: number[] = [];
-                        const dates = fraudTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
-                        if (dates.length === 0) return null;
-                        const minYear = Math.min(...dates.map((d: Date) => d.getFullYear()));
-                        const maxYear = new Date().getFullYear();
-                        for (let y = minYear; y <= maxYear; y++) years.push(y);
-                        return (
-                          <div className="border border-[var(--border)] rounded-xl p-3 mb-3">
-                            <p className="text-xs text-[var(--text-muted)] mb-2">Per-year return (%) — leave blank to use default:</p>
-                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                              {years.map(y => (
-                                <div key={y} className="flex items-center gap-1">
-                                  <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
-                                  <input type="number" min={0} max={100} step={0.5}
-                                    placeholder={String(fraudReturnRate)}
-                                    value={fraudYearlyRates[y] ?? ""}
-                                    onChange={e => {
-                                      const v = e.target.value;
-                                      const next = { ...fraudYearlyRates };
-                                      if (v === "") delete next[y]; else next[y] = Number(v) || 0;
-                                      setFraudYearlyRates(next);
-                                      if (typeof window !== "undefined") localStorage.setItem("adecarte_fraud_yearly_rates", JSON.stringify(next));
-                                    }}
-                                    className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      {strategies.length > 1 && (
-                        <div className="border border-[var(--border)] rounded-xl p-3">
-                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-strategy yield (overrides default &amp; yearly):</p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {strategies.map(s => (
-                              <div key={s} className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--text-secondary)] truncate flex-1">{s}</span>
-                                <input type="number" min={0} max={100} step={0.5}
-                                  value={strategyYields[s] ?? fraudReturnRate}
-                                  onChange={e => saveYields({ ...strategyYields, [s]: Number(e.target.value) || 0 })}
-                                  className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
-                                <span className="text-[10px] text-[var(--text-muted)]">%</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Beneficiary:</label>
+                        <select value={fraudBeneficiaryFilter} onChange={e => setFraudBeneficiaryFilter(e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm max-w-[200px]">
+                          <option value="">All Beneficiaries</option>
+                          {fraudBeneficiaries.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
+                        <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
+                          onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
+                      </div>
+                      <button
+                        onClick={() => { setReturnsPanelScope("fraud"); setReturnsPanelOpen(true); }}
+                        className="px-3 py-1.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold"
+                      >Configure Returns →</button>
                     </div>
 
                     {(() => {
 
                     const today = new Date();
+                    const fraudRateConfig: RateConfig = {
+                      defaultRate: fraudReturnRate / 100,
+                      yearlyRates: fraudYearlyRates,
+                      strategyRates: strategyYields,
+                      strategyYearlyRates: fraudStrategyYearlyRates,
+                    };
 
-                    // Calculate present value using year-aware compounding.
-                    // Per-strategy rate (if set) overrides the yearly schedule for that strategy.
+                    // Calculate present value using year-aware compounding with full rate hierarchy.
                     const fraudWithPV = fraudTxns.map((t: any) => {
                       const txnDate = new Date(t.date);
                       const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
                       const strategyKey = t.strategy || "Default";
-                      const stratOverride = strategyYields[strategyKey];
-                      let presentValue: number;
-                      if (stratOverride != null) {
-                        presentValue = t.amount * Math.pow(1 + stratOverride / 100, days / 365);
-                      } else {
-                        presentValue = compoundWithYearlyRates(t.amount, txnDate, today, fraudYearlyRates, fraudReturnRate / 100);
-                      }
+                      const presentValue = compoundBalance(t.amount, txnDate, today, strategyKey, fraudRateConfig);
                       const growth = presentValue - t.amount;
                       return { ...t, days: Math.round(days), presentValue, growth, usedRate: presentValue / t.amount };
                     });
@@ -3305,13 +3301,7 @@ export default function Home() {
                         const dDate = new Date(d.raw_date);
                         if (fDate <= dDate) {
                           const strategyKey = fraudWithPV[fi].strategy || "Default";
-                          const stratOverride = strategyYields[strategyKey];
-                          if (stratOverride != null) {
-                            const daysSince = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
-                            recomputed += fraudWithPV[fi].amount * Math.pow(1 + stratOverride / 100, daysSince / 365);
-                          } else {
-                            recomputed += compoundWithYearlyRates(fraudWithPV[fi].amount, fDate, dDate, fraudYearlyRates, fraudReturnRate / 100);
-                          }
+                          recomputed += compoundBalance(fraudWithPV[fi].amount, fDate, dDate, strategyKey, fraudRateConfig);
                         }
                       }
                       return {
@@ -3434,6 +3424,12 @@ export default function Home() {
                     const today = new Date();
                     const rate = pvReturnRate / 100;
                     const DAY_MS = 86400000;
+                    const pvRateConfig: RateConfig = {
+                      defaultRate: rate,
+                      yearlyRates: pvYearlyRates,
+                      strategyRates: pvStrategyYields,
+                      strategyYearlyRates: pvStrategyYearlyRates,
+                    };
 
                     // Simulate investment account: balance compounds daily
                     // Deposits add to balance, withdrawals remove from balance (stop compounding that portion)
@@ -3444,6 +3440,9 @@ export default function Home() {
                     const totalDeposits = sortedTxns.filter((t: any) => t.amount > 0).reduce((s: number, t: any) => s + t.amount, 0);
                     const totalWithdrawals = sortedTxns.filter((t: any) => t.amount < 0).reduce((s: number, t: any) => s + Math.abs(t.amount), 0);
                     const netDeposited = totalDeposits - totalWithdrawals;
+                    // Use the most recent transaction's strategy for compounding the pooled balance
+                    // (since PV aggregates, we use a rolling strategy from the last deposit)
+                    let activeStrategy = "";
 
                     // Walk through transactions, tracking ledger at each step
                     const ledger: Array<any> = [];
@@ -3452,13 +3451,14 @@ export default function Home() {
                       const daysBetween = Math.max(0, (txnDate.getTime() - lastDate.getTime()) / DAY_MS);
                       const prevInvested = investedBalance;
                       if (daysBetween > 0 && investedBalance > 0) {
-                        investedBalance = compoundWithYearlyRates(investedBalance, lastDate, txnDate, pvYearlyRates, rate);
+                        investedBalance = compoundBalance(investedBalance, lastDate, txnDate, activeStrategy, pvRateConfig);
                       }
                       const compoundGain = investedBalance - prevInvested;
                       balance += t.amount;
                       const preApply = investedBalance;
                       if (t.amount > 0) {
                         investedBalance += t.amount;
+                        if (t.strategy) activeStrategy = t.strategy;
                       } else {
                         investedBalance = Math.max(0, investedBalance + t.amount);
                       }
@@ -3478,7 +3478,7 @@ export default function Home() {
                     const finalDays = Math.max(0, (today.getTime() - lastDate.getTime()) / DAY_MS);
                     const preFinal = investedBalance;
                     if (finalDays > 0 && investedBalance > 0) {
-                      investedBalance = compoundWithYearlyRates(investedBalance, lastDate, today, pvYearlyRates, rate);
+                      investedBalance = compoundBalance(investedBalance, lastDate, today, activeStrategy, pvRateConfig);
                     }
                     const totalCompounded = investedBalance;
                     const totalGrowth = totalCompounded - netDeposited;
@@ -3494,14 +3494,15 @@ export default function Home() {
                     for (const [key, txns] of Object.entries(acctTxns)) {
                       let aInv = 0, aLast = new Date(txns[0].date);
                       let dep = 0, wth = 0;
+                      let aStrategy = "";
                       for (const t of txns) {
                         const td = new Date(t.date);
-                        if (td > aLast && aInv > 0) aInv = compoundWithYearlyRates(aInv, aLast, td, pvYearlyRates, rate);
-                        if (t.amount > 0) { aInv += t.amount; dep += t.amount; }
+                        if (td > aLast && aInv > 0) aInv = compoundBalance(aInv, aLast, td, aStrategy, pvRateConfig);
+                        if (t.amount > 0) { aInv += t.amount; dep += t.amount; if (t.strategy) aStrategy = t.strategy; }
                         else { aInv = Math.max(0, aInv + t.amount); wth += Math.abs(t.amount); }
                         aLast = td;
                       }
-                      if (today > aLast && aInv > 0) aInv = compoundWithYearlyRates(aInv, aLast, today, pvYearlyRates, rate);
+                      if (today > aLast && aInv > 0) aInv = compoundBalance(aInv, aLast, today, aStrategy, pvRateConfig);
                       byAccount[key] = { deposited: dep, withdrawn: wth, compounded: aInv, count: txns.length };
                     }
                     const sortedAccts = Object.entries(byAccount).sort((a, b) => b[1].compounded - a[1].compounded);
@@ -3546,40 +3547,11 @@ export default function Home() {
                           onChange={e => setPvReturnRate(Number(e.target.value) || 0)}
                           className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
                       </div>
+                      <button
+                        onClick={() => { setReturnsPanelScope("pv"); setReturnsPanelOpen(true); }}
+                        className="px-3 py-1.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold"
+                      >Configure Returns →</button>
                     </div>
-
-                    {/* Per-year rates */}
-                    {(() => {
-                      const dates = allPvTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
-                      if (dates.length === 0) return null;
-                      const minYear = Math.min(...dates.map((d: Date) => d.getFullYear()));
-                      const maxYear = new Date().getFullYear();
-                      const years: number[] = [];
-                      for (let y = minYear; y <= maxYear; y++) years.push(y);
-                      return (
-                        <div className="border border-[var(--border)] rounded-xl p-3 mb-4">
-                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-year return (%) — leave blank to use default:</p>
-                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                            {years.map(y => (
-                              <div key={y} className="flex items-center gap-1">
-                                <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
-                                <input type="number" min={0} max={100} step={0.5}
-                                  placeholder={String(pvReturnRate)}
-                                  value={pvYearlyRates[y] ?? ""}
-                                  onChange={e => {
-                                    const v = e.target.value;
-                                    const next = { ...pvYearlyRates };
-                                    if (v === "") delete next[y]; else next[y] = Number(v) || 0;
-                                    setPvYearlyRates(next);
-                                    if (typeof window !== "undefined") localStorage.setItem("adecarte_pv_yearly_rates", JSON.stringify(next));
-                                  }}
-                                  className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
 
                     {/* Flag inclusion filter */}
                     <div className="flex items-center gap-3 mb-4 flex-wrap border border-[var(--border)] rounded-lg px-3 py-2">
@@ -4021,6 +3993,168 @@ export default function Home() {
           );
         })()}
       </main>
+
+      {/* Returns Configuration Sidebar */}
+      {returnsPanelOpen && (() => {
+        const scope = returnsPanelScope;
+        const isFraud = scope === "fraud";
+        const allTxns = isFraud
+          ? (analyticsData?.fraud_transactions || [])
+          : (analyticsData?.pv_transactions || []);
+        const defaultRate = isFraud ? fraudReturnRate : pvReturnRate;
+        const setDefaultRate = isFraud ? setFraudReturnRate : setPvReturnRate;
+        const yearlyRates = isFraud ? fraudYearlyRates : pvYearlyRates;
+        const setYearlyRates = isFraud ? setFraudYearlyRates : setPvYearlyRates;
+        const yearlyKey = isFraud ? "adecarte_fraud_yearly_rates" : "adecarte_pv_yearly_rates";
+        const stratRates = isFraud ? strategyYields : pvStrategyYields;
+        const setStratRates = isFraud ? setStrategyYields : setPvStrategyYields;
+        const stratKey = isFraud ? "adecarte_strategy_yields" : "adecarte_pv_strategy_yields";
+        const stratYearlyRates = isFraud ? fraudStrategyYearlyRates : pvStrategyYearlyRates;
+        const setStratYearlyRates = isFraud ? setFraudStrategyYearlyRates : setPvStrategyYearlyRates;
+        const stratYearlyKey = isFraud ? "adecarte_fraud_strategy_yearly_rates" : "adecarte_pv_strategy_yearly_rates";
+
+        const dates = allTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
+        const minYear = dates.length > 0 ? Math.min(...dates.map((d: Date) => d.getFullYear())) : 2020;
+        const maxYear = new Date().getFullYear();
+        const years: number[] = [];
+        for (let y = minYear; y <= maxYear; y++) years.push(y);
+        const stratArr: string[] = allTxns.map((t: any) => (t.strategy || "Default") as string);
+        const strategies: string[] = Array.from(new Set(stratArr)).sort();
+
+        const updateYearly = (y: number, v: string) => {
+          const next = { ...yearlyRates };
+          if (v === "") delete next[y]; else next[y] = Number(v) || 0;
+          setYearlyRates(next);
+          if (typeof window !== "undefined") localStorage.setItem(yearlyKey, JSON.stringify(next));
+        };
+        const updateStratFlat = (s: string, v: string) => {
+          const next = { ...stratRates };
+          if (v === "") delete next[s]; else next[s] = Number(v) || 0;
+          setStratRates(next);
+          if (typeof window !== "undefined") localStorage.setItem(stratKey, JSON.stringify(next));
+        };
+        const updateStratYearly = (s: string, y: number, v: string) => {
+          const next: Record<string, Record<number, number>> = { ...stratYearlyRates };
+          const inner = { ...(next[s] || {}) };
+          if (v === "") delete inner[y]; else inner[y] = Number(v) || 0;
+          if (Object.keys(inner).length === 0) delete next[s]; else next[s] = inner;
+          setStratYearlyRates(next);
+          if (typeof window !== "undefined") localStorage.setItem(stratYearlyKey, JSON.stringify(next));
+        };
+
+        return (
+        <>
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={() => setReturnsPanelOpen(false)} />
+          <div className="fixed top-0 right-0 h-full w-[620px] max-w-[95vw] bg-white border-l border-[var(--border)] z-50 flex flex-col shadow-2xl">
+            <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-base">Configure Returns</h3>
+                <p className="text-xs text-[var(--text-muted)]">{isFraud ? "Fraud Impact" : "Present Value"} — hierarchy: strategy+year → strategy → year → default</p>
+              </div>
+              <button onClick={() => setReturnsPanelOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-2xl leading-none">&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Default */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">1. Default Annual Return</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">Used when no year-specific, strategy-specific, or strategy+year rate is set.</p>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} max={100} step={0.5} value={defaultRate}
+                    onChange={e => setDefaultRate(Number(e.target.value) || 0)}
+                    className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 w-24 text-sm" />
+                  <span className="text-xs text-[var(--text-muted)]">%</span>
+                </div>
+              </div>
+
+              {/* Per-year */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">2. Per-Year Return</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">Overrides the default for specific years. Leave blank to fall back to default.</p>
+                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                  {years.map(y => (
+                    <div key={y} className="flex items-center gap-1">
+                      <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
+                      <input type="number" min={0} max={100} step={0.5}
+                        placeholder={String(defaultRate)}
+                        value={yearlyRates[y] ?? ""}
+                        onChange={e => updateYearly(y, e.target.value)}
+                        className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Per-strategy */}
+              {strategies.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">3. Per-Strategy Flat Return</h4>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-2">Overrides per-year rates for transactions with this strategy. Leave blank to use yearly/default.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {strategies.map(s => (
+                      <div key={s} className="flex items-center gap-2 border border-[var(--border)] rounded px-2 py-1.5">
+                        <span className="text-xs text-[var(--text-secondary)] truncate flex-1" title={s}>{s}</span>
+                        <input type="number" min={0} max={100} step={0.5}
+                          placeholder={String(defaultRate)}
+                          value={stratRates[s] ?? ""}
+                          onChange={e => updateStratFlat(s, e.target.value)}
+                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
+                        <span className="text-[10px] text-[var(--text-muted)]">%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Per-strategy per-year */}
+              {strategies.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">4. Per-Strategy Per-Year Return</h4>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-2">Highest priority. Overrides everything for this strategy + year. Leave blank to fall through.</p>
+                  <div className="space-y-3">
+                    {strategies.map(s => (
+                      <div key={s} className="border border-[var(--border)] rounded-lg p-2">
+                        <p className="text-xs font-semibold mb-2 truncate" title={s}>{s}</p>
+                        <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                          {years.map(y => (
+                            <div key={y} className="flex items-center gap-1">
+                              <span className="text-[10px] text-[var(--text-secondary)] w-8">{y}</span>
+                              <input type="number" min={0} max={100} step={0.5}
+                                placeholder="—"
+                                value={stratYearlyRates[s]?.[y] ?? ""}
+                                onChange={e => updateStratYearly(s, y, e.target.value)}
+                                className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-1.5 py-1 w-14 text-[11px]" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-[var(--border)] flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setYearlyRates({});
+                  setStratRates({});
+                  setStratYearlyRates({});
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem(yearlyKey);
+                    localStorage.removeItem(stratKey);
+                    localStorage.removeItem(stratYearlyKey);
+                  }
+                }}
+                className="text-xs text-red-600 hover:underline"
+              >Clear all overrides</button>
+              <button
+                onClick={() => setReturnsPanelOpen(false)}
+                className="px-4 py-1.5 text-xs bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500"
+              >Done</button>
+            </div>
+          </div>
+        </>
+        );
+      })()}
 
       {/* AI Chat Toggle Button (fixed) */}
       <button onClick={() => setChatOpen(!chatOpen)}

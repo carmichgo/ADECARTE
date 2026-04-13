@@ -152,6 +152,7 @@ export async function GET(req: NextRequest) {
         account: t.account || t.account_name, bank: t.bank || "",
         direction: t.direction || "", beneficiary: t.beneficiary || "",
         flag: t.flag || "", category: t.category || "",
+        strategy: t.strategy || "",
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
