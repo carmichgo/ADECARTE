@@ -38,6 +38,26 @@ const fmt = (n: number | null) => {
   return (n < 0 ? "-$" : "$") + abs;
 };
 
+// Compound a balance from one date to another, applying per-year rates.
+// Falls back to defaultRate (decimal, e.g. 0.07) for any year not in yearlyRates.
+function compoundWithYearlyRates(balance: number, fromDate: Date, toDate: Date, yearlyRates: Record<number, number>, defaultRate: number): number {
+  if (balance <= 0 || toDate <= fromDate) return balance;
+  const DAY_MS = 86400000;
+  let current = balance;
+  let cursor = new Date(fromDate);
+  while (cursor < toDate) {
+    const year = cursor.getFullYear();
+    const yearEnd = new Date(year + 1, 0, 1);
+    const segmentEnd = yearEnd < toDate ? yearEnd : toDate;
+    const days = (segmentEnd.getTime() - cursor.getTime()) / DAY_MS;
+    const ratePct = yearlyRates[year];
+    const rate = ratePct != null ? ratePct / 100 : defaultRate;
+    current *= Math.pow(1 + rate, days / 365);
+    cursor = segmentEnd;
+  }
+  return current;
+}
+
 export default function Home() {
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("adecarte_theme") === "dark";
@@ -144,7 +164,19 @@ export default function Home() {
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
   const [fraudBankFilter, setFraudBankFilter] = useState("all");
   const [fraudBeneficiaryFilter, setFraudBeneficiaryFilter] = useState("");
+  const [fraudYearlyRates, setFraudYearlyRates] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_fraud_yearly_rates") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
   const [pvReturnRate, setPvReturnRate] = useState(7);
+  const [pvYearlyRates, setPvYearlyRates] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_pv_yearly_rates") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
   const [pvBankFilter, setPvBankFilter] = useState("all");
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
   const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
@@ -3175,9 +3207,40 @@ export default function Home() {
                             className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
                         </div>
                       </div>
+                      {(() => {
+                        const years: number[] = [];
+                        const dates = fraudTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
+                        if (dates.length === 0) return null;
+                        const minYear = Math.min(...dates.map((d: Date) => d.getFullYear()));
+                        const maxYear = new Date().getFullYear();
+                        for (let y = minYear; y <= maxYear; y++) years.push(y);
+                        return (
+                          <div className="border border-[var(--border)] rounded-xl p-3 mb-3">
+                            <p className="text-xs text-[var(--text-muted)] mb-2">Per-year return (%) — leave blank to use default:</p>
+                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                              {years.map(y => (
+                                <div key={y} className="flex items-center gap-1">
+                                  <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
+                                  <input type="number" min={0} max={100} step={0.5}
+                                    placeholder={String(fraudReturnRate)}
+                                    value={fraudYearlyRates[y] ?? ""}
+                                    onChange={e => {
+                                      const v = e.target.value;
+                                      const next = { ...fraudYearlyRates };
+                                      if (v === "") delete next[y]; else next[y] = Number(v) || 0;
+                                      setFraudYearlyRates(next);
+                                      if (typeof window !== "undefined") localStorage.setItem("adecarte_fraud_yearly_rates", JSON.stringify(next));
+                                    }}
+                                    className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {strategies.length > 1 && (
                         <div className="border border-[var(--border)] rounded-xl p-3">
-                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-strategy yield (overrides default):</p>
+                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-strategy yield (overrides default &amp; yearly):</p>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                             {strategies.map(s => (
                               <div key={s} className="flex items-center gap-2">
@@ -3198,14 +3261,21 @@ export default function Home() {
 
                     const today = new Date();
 
-                    // Calculate present value for each fraud txn using per-strategy rate
+                    // Calculate present value using year-aware compounding.
+                    // Per-strategy rate (if set) overrides the yearly schedule for that strategy.
                     const fraudWithPV = fraudTxns.map((t: any) => {
                       const txnDate = new Date(t.date);
                       const days = Math.max(0, (today.getTime() - txnDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const rate = getRate(t.strategy || "Default");
-                      const presentValue = t.amount * Math.pow(1 + rate, days / 365);
+                      const strategyKey = t.strategy || "Default";
+                      const stratOverride = strategyYields[strategyKey];
+                      let presentValue: number;
+                      if (stratOverride != null) {
+                        presentValue = t.amount * Math.pow(1 + stratOverride / 100, days / 365);
+                      } else {
+                        presentValue = compoundWithYearlyRates(t.amount, txnDate, today, fraudYearlyRates, fraudReturnRate / 100);
+                      }
                       const growth = presentValue - t.amount;
-                      return { ...t, days: Math.round(days), presentValue, growth, usedRate: rate * 100 };
+                      return { ...t, days: Math.round(days), presentValue, growth, usedRate: presentValue / t.amount };
                     });
 
                     const totalStolen = fraudWithPV.reduce((s: number, t: any) => s + t.amount, 0);
@@ -3234,9 +3304,14 @@ export default function Home() {
                         const fDate = new Date(fraudWithPV[fi].date);
                         const dDate = new Date(d.raw_date);
                         if (fDate <= dDate) {
-                          const daysSince = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
-                          const fiRate = getRate(fraudWithPV[fi].strategy || "Default");
-                          recomputed += fraudWithPV[fi].amount * Math.pow(1 + fiRate, daysSince / 365);
+                          const strategyKey = fraudWithPV[fi].strategy || "Default";
+                          const stratOverride = strategyYields[strategyKey];
+                          if (stratOverride != null) {
+                            const daysSince = Math.max(0, (dDate.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
+                            recomputed += fraudWithPV[fi].amount * Math.pow(1 + stratOverride / 100, daysSince / 365);
+                          } else {
+                            recomputed += compoundWithYearlyRates(fraudWithPV[fi].amount, fDate, dDate, fraudYearlyRates, fraudReturnRate / 100);
+                          }
                         }
                       }
                       return {
@@ -3377,7 +3452,7 @@ export default function Home() {
                       const daysBetween = Math.max(0, (txnDate.getTime() - lastDate.getTime()) / DAY_MS);
                       const prevInvested = investedBalance;
                       if (daysBetween > 0 && investedBalance > 0) {
-                        investedBalance *= Math.pow(1 + rate, daysBetween / 365);
+                        investedBalance = compoundWithYearlyRates(investedBalance, lastDate, txnDate, pvYearlyRates, rate);
                       }
                       const compoundGain = investedBalance - prevInvested;
                       balance += t.amount;
@@ -3403,7 +3478,7 @@ export default function Home() {
                     const finalDays = Math.max(0, (today.getTime() - lastDate.getTime()) / DAY_MS);
                     const preFinal = investedBalance;
                     if (finalDays > 0 && investedBalance > 0) {
-                      investedBalance *= Math.pow(1 + rate, finalDays / 365);
+                      investedBalance = compoundWithYearlyRates(investedBalance, lastDate, today, pvYearlyRates, rate);
                     }
                     const totalCompounded = investedBalance;
                     const totalGrowth = totalCompounded - netDeposited;
@@ -3417,19 +3492,16 @@ export default function Home() {
                     });
                     const byAccount: Record<string, { deposited: number; withdrawn: number; compounded: number; count: number }> = {};
                     for (const [key, txns] of Object.entries(acctTxns)) {
-                      let aBal = 0, aInv = 0, aLast = new Date(txns[0].date);
+                      let aInv = 0, aLast = new Date(txns[0].date);
                       let dep = 0, wth = 0;
                       for (const t of txns) {
                         const td = new Date(t.date);
-                        const db = Math.max(0, (td.getTime() - aLast.getTime()) / DAY_MS);
-                        if (db > 0 && aInv > 0) aInv *= Math.pow(1 + rate, db / 365);
-                        aBal += t.amount;
+                        if (td > aLast && aInv > 0) aInv = compoundWithYearlyRates(aInv, aLast, td, pvYearlyRates, rate);
                         if (t.amount > 0) { aInv += t.amount; dep += t.amount; }
                         else { aInv = Math.max(0, aInv + t.amount); wth += Math.abs(t.amount); }
                         aLast = td;
                       }
-                      const fd = Math.max(0, (today.getTime() - aLast.getTime()) / DAY_MS);
-                      if (fd > 0 && aInv > 0) aInv *= Math.pow(1 + rate, fd / 365);
+                      if (today > aLast && aInv > 0) aInv = compoundWithYearlyRates(aInv, aLast, today, pvYearlyRates, rate);
                       byAccount[key] = { deposited: dep, withdrawn: wth, compounded: aInv, count: txns.length };
                     }
                     const sortedAccts = Object.entries(byAccount).sort((a, b) => b[1].compounded - a[1].compounded);
@@ -3469,12 +3541,45 @@ export default function Home() {
                         </select>
                       </div>
                       <div className="flex items-center gap-2">
-                        <label className="text-xs text-[var(--text-muted)]">Annual return (%):</label>
+                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
                         <input type="number" min={0} max={100} step={0.5} value={pvReturnRate}
                           onChange={e => setPvReturnRate(Number(e.target.value) || 0)}
                           className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
                       </div>
                     </div>
+
+                    {/* Per-year rates */}
+                    {(() => {
+                      const dates = allPvTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
+                      if (dates.length === 0) return null;
+                      const minYear = Math.min(...dates.map((d: Date) => d.getFullYear()));
+                      const maxYear = new Date().getFullYear();
+                      const years: number[] = [];
+                      for (let y = minYear; y <= maxYear; y++) years.push(y);
+                      return (
+                        <div className="border border-[var(--border)] rounded-xl p-3 mb-4">
+                          <p className="text-xs text-[var(--text-muted)] mb-2">Per-year return (%) — leave blank to use default:</p>
+                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                            {years.map(y => (
+                              <div key={y} className="flex items-center gap-1">
+                                <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
+                                <input type="number" min={0} max={100} step={0.5}
+                                  placeholder={String(pvReturnRate)}
+                                  value={pvYearlyRates[y] ?? ""}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    const next = { ...pvYearlyRates };
+                                    if (v === "") delete next[y]; else next[y] = Number(v) || 0;
+                                    setPvYearlyRates(next);
+                                    if (typeof window !== "undefined") localStorage.setItem("adecarte_pv_yearly_rates", JSON.stringify(next));
+                                  }}
+                                  className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Flag inclusion filter */}
                     <div className="flex items-center gap-3 mb-4 flex-wrap border border-[var(--border)] rounded-lg px-3 py-2">
