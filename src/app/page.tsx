@@ -3221,13 +3221,11 @@ export default function Home() {
                     }
                     const fraudBanks: string[] = [...new Set(allFraudTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
                     const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
-                    // Receiving entity = counterparty OR ext_bank (fallback). Union of both.
-                    const getEntity = (t: any) => (t.counterparty && t.counterparty.trim()) || (t.ext_bank && t.ext_bank.trim()) || "Unknown";
-                    const fraudCounterparties: string[] = [...new Set(allFraudTxns.map((t: any) => getEntity(t)) as string[])].sort();
+                    const fraudCounterparties: string[] = [...new Set(allFraudTxns.map((t: any) => (t.counterparty && String(t.counterparty).trim()) || "(blank)") as string[])].sort();
                     const fraudTxns = allFraudTxns
                       .filter((t: any) => fraudBankFilter === "all" || (t.bank || "Unknown") === fraudBankFilter)
                       .filter((t: any) => fraudBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === fraudBeneficiaryFilter)
-                      .filter((t: any) => !fraudExcludedCounterparties.has(getEntity(t)))
+                      .filter((t: any) => !fraudExcludedCounterparties.has((t.counterparty && String(t.counterparty).trim()) || "(blank)"))
                       .filter((t: any) => !fraudExcludedBeneficiaries.has(t.beneficiary || "Unknown"));
 
                     // Get unique strategies
