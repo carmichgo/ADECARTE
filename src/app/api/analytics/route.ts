@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, bank, description, counterparty, beneficiary, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
+    const txns = await fetchAll("transactions", "id, date, amount, direction, account, account_name, bank, ext_bank, description, counterparty, beneficiary, symbol, security, category, flag, unit_price, quantity, strategy, settle_date", q => q.order("date", { ascending: true }));
 
     if (!txns || txns.length === 0) {
       return NextResponse.json({
@@ -134,6 +134,7 @@ export async function GET(req: NextRequest) {
       .map(t => ({
         id: t.id, date: t.date, amount: Math.abs(t.amount || 0),
         description: t.description, counterparty: t.counterparty,
+        ext_bank: t.ext_bank || "",
         account: t.account || t.account_name, bank: t.bank || "",
         strategy: t.strategy || "", beneficiary: t.beneficiary || "",
         flag: t.flag || "",
