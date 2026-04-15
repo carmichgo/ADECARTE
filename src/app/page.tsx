@@ -188,6 +188,8 @@ export default function Home() {
   const [fraudReturnRate, setFraudReturnRate] = useState(7);
   const [fraudBankFilter, setFraudBankFilter] = useState("all");
   const [fraudBeneficiaryFilter, setFraudBeneficiaryFilter] = useState("");
+  const [fraudExcludedCounterparties, setFraudExcludedCounterparties] = useState<Set<string>>(new Set());
+  const [fraudExcludedBeneficiaries, setFraudExcludedBeneficiaries] = useState<Set<string>>(new Set());
   const [fraudYearlyRates, setFraudYearlyRates] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
       try { return JSON.parse(localStorage.getItem("adecarte_fraud_yearly_rates") || "{}"); } catch { return {}; }
@@ -3219,9 +3221,12 @@ export default function Home() {
                     }
                     const fraudBanks: string[] = [...new Set(allFraudTxns.map((t: any) => t.bank || "Unknown") as string[])].sort();
                     const fraudBeneficiaries: string[] = [...new Set(allFraudTxns.map((t: any) => t.beneficiary || "Unknown") as string[])].sort();
+                    const fraudCounterparties: string[] = [...new Set(allFraudTxns.map((t: any) => t.counterparty || "Unknown") as string[])].sort();
                     const fraudTxns = allFraudTxns
                       .filter((t: any) => fraudBankFilter === "all" || (t.bank || "Unknown") === fraudBankFilter)
-                      .filter((t: any) => fraudBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === fraudBeneficiaryFilter);
+                      .filter((t: any) => fraudBeneficiaryFilter === "" || (t.beneficiary || "Unknown") === fraudBeneficiaryFilter)
+                      .filter((t: any) => !fraudExcludedCounterparties.has(t.counterparty || "Unknown"))
+                      .filter((t: any) => !fraudExcludedBeneficiaries.has(t.beneficiary || "Unknown"));
 
                     // Get unique strategies
                     const strategies: string[] = [...new Set(fraudTxns.map((t: any) => t.strategy || "Default") as string[])].sort();
@@ -3258,6 +3263,84 @@ export default function Home() {
                         onClick={() => { setReturnsPanelScope("fraud"); setReturnsPanelOpen(true); }}
                         className="px-3 py-1.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold"
                       >Configure Returns →</button>
+                    </div>
+
+                    {/* Exclusion controls */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                      <div className="border border-[var(--border)] rounded-lg p-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Receiving Entity</span>
+                          {fraudExcludedCounterparties.size > 0 && (
+                            <button onClick={() => setFraudExcludedCounterparties(new Set())}
+                              className="text-[10px] text-red-600 hover:underline">Clear ({fraudExcludedCounterparties.size})</button>
+                          )}
+                        </div>
+                        <select
+                          className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 text-xs"
+                          value=""
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const next = new Set(fraudExcludedCounterparties);
+                            next.add(val);
+                            setFraudExcludedCounterparties(next);
+                          }}
+                        >
+                          <option value="">+ Add entity to exclude…</option>
+                          {fraudCounterparties.filter(c => !fraudExcludedCounterparties.has(c)).map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        {fraudExcludedCounterparties.size > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {Array.from(fraudExcludedCounterparties).sort().map(c => (
+                              <span key={c} className="inline-flex items-center gap-1 text-[10px] bg-red-50 border border-red-200 text-red-600 rounded px-1.5 py-0.5">
+                                {c}
+                                <button onClick={() => {
+                                  const next = new Set(fraudExcludedCounterparties);
+                                  next.delete(c);
+                                  setFraudExcludedCounterparties(next);
+                                }} className="hover:text-red-800">×</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="border border-[var(--border)] rounded-lg p-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Beneficiary</span>
+                          {fraudExcludedBeneficiaries.size > 0 && (
+                            <button onClick={() => setFraudExcludedBeneficiaries(new Set())}
+                              className="text-[10px] text-red-600 hover:underline">Clear ({fraudExcludedBeneficiaries.size})</button>
+                          )}
+                        </div>
+                        <select
+                          className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 text-xs"
+                          value=""
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const next = new Set(fraudExcludedBeneficiaries);
+                            next.add(val);
+                            setFraudExcludedBeneficiaries(next);
+                          }}
+                        >
+                          <option value="">+ Add beneficiary to exclude…</option>
+                          {fraudBeneficiaries.filter(b => !fraudExcludedBeneficiaries.has(b)).map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                        {fraudExcludedBeneficiaries.size > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {Array.from(fraudExcludedBeneficiaries).sort().map(b => (
+                              <span key={b} className="inline-flex items-center gap-1 text-[10px] bg-red-50 border border-red-200 text-red-600 rounded px-1.5 py-0.5">
+                                {b}
+                                <button onClick={() => {
+                                  const next = new Set(fraudExcludedBeneficiaries);
+                                  next.delete(b);
+                                  setFraudExcludedBeneficiaries(next);
+                                }} className="hover:text-red-800">×</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {(() => {
