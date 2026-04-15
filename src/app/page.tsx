@@ -221,6 +221,18 @@ export default function Home() {
   });
   const [returnsPanelOpen, setReturnsPanelOpen] = useState(false);
   const [returnsPanelScope, setReturnsPanelScope] = useState<"fraud" | "pv">("fraud");
+  const [fraudSavedConfigs, setFraudSavedConfigs] = useState<Record<string, { yearlyRates: Record<number, number>; stratYearlyRates: Record<string, Record<number, number>> }>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_fraud_saved_configs") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
+  const [pvSavedConfigs, setPvSavedConfigs] = useState<Record<string, { yearlyRates: Record<number, number>; stratYearlyRates: Record<string, Record<number, number>> }>>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("adecarte_pv_saved_configs") || "{}"); } catch { return {}; }
+    }
+    return {};
+  });
   const [pvBankFilter, setPvBankFilter] = useState("all");
   const [pvBeneficiaryFilter, setPvBeneficiaryFilter] = useState("");
   const [pvCounterpartyFilter, setPvCounterpartyFilter] = useState("");
@@ -3265,8 +3277,15 @@ export default function Home() {
                       const strategyKey = t.strategy || "Default";
                       const presentValue = compoundBalance(t.amount, txnDate, today, strategyKey, fraudRateConfig);
                       const growth = presentValue - t.amount;
-                      return { ...t, days: Math.round(days), presentValue, growth, usedRate: presentValue / t.amount };
+                      const years = days / 365;
+                      const effRate = years > 0 && t.amount > 0 ? (Math.pow(presentValue / t.amount, 1 / years) - 1) : 0;
+                      return { ...t, days: Math.round(days), years, presentValue, growth, effRate };
                     });
+
+                    // Weighted average effective annualized rate (weighted by principal)
+                    const avgRateWeightSum = fraudWithPV.reduce((s: number, t: any) => s + t.amount, 0);
+                    const avgRateNum = fraudWithPV.reduce((s: number, t: any) => s + (t.amount * t.effRate), 0);
+                    const weightedAvgRate = avgRateWeightSum > 0 ? (avgRateNum / avgRateWeightSum) * 100 : 0;
 
                     const totalStolen = fraudWithPV.reduce((s: number, t: any) => s + t.amount, 0);
                     const totalPV = fraudWithPV.reduce((s: number, t: any) => s + t.presentValue, 0);
@@ -3305,7 +3324,7 @@ export default function Home() {
                           <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
                             <div className="text-lg font-bold text-red-600">{fmt(totalPV)}</div>
-                            <div className="text-[10px] text-[var(--text-muted)]">per-year rates</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">avg {weightedAvgRate.toFixed(2)}% annual</div>
                           </div>
                           <div className="bg-[var(--bg)] border border-red-200 rounded-lg p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Lost Growth</div>
@@ -3464,6 +3483,24 @@ export default function Home() {
                     const totalCompounded = investedBalance;
                     const totalGrowth = totalCompounded - netDeposited;
 
+                    // Weighted average effective annualized rate for deposits only
+                    // For each deposit, compute what rate it got between its date and today.
+                    // Weight by deposit amount.
+                    let pvRateWeightSum = 0;
+                    let pvRateNum = 0;
+                    for (const t of sortedTxns) {
+                      if (t.amount <= 0) continue;
+                      const td = new Date(t.date);
+                      const years = Math.max(0, (today.getTime() - td.getTime()) / DAY_MS / 365);
+                      if (years <= 0) continue;
+                      const strategyKey = t.strategy || "Default";
+                      const pv = compoundBalance(t.amount, td, today, strategyKey, pvRateConfig);
+                      const effRate = Math.pow(pv / t.amount, 1 / years) - 1;
+                      pvRateWeightSum += t.amount;
+                      pvRateNum += t.amount * effRate;
+                    }
+                    const pvWeightedAvgRate = pvRateWeightSum > 0 ? (pvRateNum / pvRateWeightSum) * 100 : 0;
+
                     // Group by account — simulate per account
                     const acctTxns: Record<string, any[]> = {};
                     sortedTxns.forEach((t: any) => {
@@ -3572,7 +3609,7 @@ export default function Home() {
                       <div className="bg-[var(--bg)] border border-indigo-200 rounded-2xl p-3 text-center">
                         <div className="text-[10px] text-[var(--text-muted)] uppercase">Compounded Value</div>
                         <div className="text-lg font-bold text-indigo-600">{fmt(totalCompounded)}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">per-year rates · growth: {fmt(totalGrowth)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">avg {pvWeightedAvgRate.toFixed(2)}% · growth: {fmt(totalGrowth)}</div>
                       </div>
                     </div>
 
@@ -3987,6 +4024,34 @@ export default function Home() {
         const stratYearlyRates = isFraud ? fraudStrategyYearlyRates : pvStrategyYearlyRates;
         const setStratYearlyRates = isFraud ? setFraudStrategyYearlyRates : setPvStrategyYearlyRates;
         const stratYearlyKey = isFraud ? "adecarte_fraud_strategy_yearly_rates" : "adecarte_pv_strategy_yearly_rates";
+        const savedConfigs = isFraud ? fraudSavedConfigs : pvSavedConfigs;
+        const setSavedConfigs = isFraud ? setFraudSavedConfigs : setPvSavedConfigs;
+        const savedConfigsKey = isFraud ? "adecarte_fraud_saved_configs" : "adecarte_pv_saved_configs";
+
+        const saveCurrentConfig = () => {
+          const name = typeof window !== "undefined" ? window.prompt("Name for this configuration:") : null;
+          if (!name || !name.trim()) return;
+          const next = { ...savedConfigs, [name.trim()]: { yearlyRates: { ...yearlyRates }, stratYearlyRates: JSON.parse(JSON.stringify(stratYearlyRates)) } };
+          setSavedConfigs(next);
+          if (typeof window !== "undefined") localStorage.setItem(savedConfigsKey, JSON.stringify(next));
+        };
+        const loadConfig = (name: string) => {
+          const cfg = savedConfigs[name];
+          if (!cfg) return;
+          setYearlyRates({ ...cfg.yearlyRates });
+          setStratYearlyRates(JSON.parse(JSON.stringify(cfg.stratYearlyRates || {})));
+          if (typeof window !== "undefined") {
+            localStorage.setItem(yearlyKey, JSON.stringify(cfg.yearlyRates));
+            localStorage.setItem(stratYearlyKey, JSON.stringify(cfg.stratYearlyRates || {}));
+          }
+        };
+        const deleteConfig = (name: string) => {
+          if (typeof window !== "undefined" && !window.confirm(`Delete configuration "${name}"?`)) return;
+          const next = { ...savedConfigs };
+          delete next[name];
+          setSavedConfigs(next);
+          if (typeof window !== "undefined") localStorage.setItem(savedConfigsKey, JSON.stringify(next));
+        };
 
         const dates = allTxns.map((t: any) => new Date(t.date)).filter((d: Date) => !isNaN(d.getTime()));
         const minYear = dates.length > 0 ? Math.min(...dates.map((d: Date) => d.getFullYear())) : 2020;
@@ -3996,22 +4061,27 @@ export default function Home() {
         const stratArr: string[] = allTxns.map((t: any) => (t.strategy || "Default") as string);
         const strategies: string[] = Array.from(new Set(stratArr)).sort();
 
+        const parseRate = (v: string): number => {
+          if (v === "" || v === "-") return 0;
+          const n = Number(v);
+          return isNaN(n) ? 0 : n;
+        };
         const updateYearly = (y: number, v: string) => {
           const next = { ...yearlyRates };
-          if (v === "") delete next[y]; else next[y] = Number(v) || 0;
+          if (v === "") delete next[y]; else next[y] = parseRate(v);
           setYearlyRates(next);
           if (typeof window !== "undefined") localStorage.setItem(yearlyKey, JSON.stringify(next));
         };
         const updateStratFlat = (s: string, v: string) => {
           const next = { ...stratRates };
-          if (v === "") delete next[s]; else next[s] = Number(v) || 0;
+          if (v === "") delete next[s]; else next[s] = parseRate(v);
           setStratRates(next);
           if (typeof window !== "undefined") localStorage.setItem(stratKey, JSON.stringify(next));
         };
         const updateStratYearly = (s: string, y: number, v: string) => {
           const next: Record<string, Record<number, number>> = { ...stratYearlyRates };
           const inner = { ...(next[s] || {}) };
-          if (v === "") delete inner[y]; else inner[y] = Number(v) || 0;
+          if (v === "") delete inner[y]; else inner[y] = parseRate(v);
           if (Object.keys(inner).length === 0) delete next[s]; else next[s] = inner;
           setStratYearlyRates(next);
           if (typeof window !== "undefined") localStorage.setItem(stratYearlyKey, JSON.stringify(next));
@@ -4029,6 +4099,36 @@ export default function Home() {
               <button onClick={() => setReturnsPanelOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-2xl leading-none">&times;</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Saved configurations */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Saved Configurations</h4>
+                  <button onClick={saveCurrentConfig}
+                    className="text-[11px] px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 rounded font-semibold">
+                    Save current as…
+                  </button>
+                </div>
+                {Object.keys(savedConfigs).length === 0 ? (
+                  <p className="text-[11px] text-[var(--text-muted)]">No saved configurations yet. Save the current rates to reuse them later.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {Object.keys(savedConfigs).sort().map(name => (
+                      <div key={name} className="flex items-center gap-2 border border-[var(--border)] rounded px-2 py-1.5">
+                        <span className="text-xs font-medium flex-1 truncate" title={name}>{name}</span>
+                        <button onClick={() => loadConfig(name)}
+                          className="text-[10px] px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded">
+                          Load
+                        </button>
+                        <button onClick={() => deleteConfig(name)}
+                          className="text-[10px] px-2 py-0.5 text-red-600 hover:underline">
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Per-year */}
               <div>
                 <h4 className="text-sm font-semibold mb-2">1. Per-Year Return</h4>
@@ -4037,7 +4137,7 @@ export default function Home() {
                   {years.map(y => (
                     <div key={y} className="flex items-center gap-1">
                       <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
-                      <input type="number" min={0} max={100} step={0.5}
+                      <input type="number" min={-100} max={100} step={0.5}
                         placeholder="0"
                         value={yearlyRates[y] ?? ""}
                         onChange={e => updateYearly(y, e.target.value)}
@@ -4060,7 +4160,7 @@ export default function Home() {
                           {years.map(y => (
                             <div key={y} className="flex items-center gap-1">
                               <span className="text-[10px] text-[var(--text-secondary)] w-8">{y}</span>
-                              <input type="number" min={0} max={100} step={0.5}
+                              <input type="number" min={-100} max={100} step={0.5}
                                 placeholder={yearlyRates[y] != null ? String(yearlyRates[y]) : "0"}
                                 value={stratYearlyRates[s]?.[y] ?? ""}
                                 onChange={e => updateStratYearly(s, y, e.target.value)}
