@@ -3268,78 +3268,56 @@ export default function Home() {
                     {/* Exclusion controls */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                       <div className="border border-[var(--border)] rounded-lg p-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Receiving Entity</span>
-                          {fraudExcludedCounterparties.size > 0 && (
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Receiving Entity {fraudExcludedCounterparties.size > 0 && <span className="text-red-600">({fraudExcludedCounterparties.size})</span>}</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => setFraudExcludedCounterparties(new Set(fraudCounterparties))}
+                              className="text-[10px] text-indigo-600 hover:underline">All</button>
                             <button onClick={() => setFraudExcludedCounterparties(new Set())}
-                              className="text-[10px] text-red-600 hover:underline">Clear ({fraudExcludedCounterparties.size})</button>
-                          )}
-                        </div>
-                        <select
-                          className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 text-xs"
-                          value=""
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const next = new Set(fraudExcludedCounterparties);
-                            next.add(val);
-                            setFraudExcludedCounterparties(next);
-                          }}
-                        >
-                          <option value="">+ Add entity to exclude…</option>
-                          {fraudCounterparties.filter(c => !fraudExcludedCounterparties.has(c)).map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        {fraudExcludedCounterparties.size > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {Array.from(fraudExcludedCounterparties).sort().map(c => (
-                              <span key={c} className="inline-flex items-center gap-1 text-[10px] bg-red-50 border border-red-200 text-red-600 rounded px-1.5 py-0.5">
-                                {c}
-                                <button onClick={() => {
-                                  const next = new Set(fraudExcludedCounterparties);
-                                  next.delete(c);
-                                  setFraudExcludedCounterparties(next);
-                                }} className="hover:text-red-800">×</button>
-                              </span>
-                            ))}
+                              className="text-[10px] text-red-600 hover:underline">None</button>
                           </div>
-                        )}
+                        </div>
+                        <div className="max-h-40 overflow-y-auto border border-[var(--border-subtle)] rounded bg-[var(--bg-page)] p-1.5">
+                          {fraudCounterparties.map(c => (
+                            <label key={c} className="flex items-center gap-1.5 text-[11px] cursor-pointer hover:bg-[var(--bg-muted)] px-1 py-0.5 rounded">
+                              <input type="checkbox"
+                                checked={fraudExcludedCounterparties.has(c)}
+                                onChange={e => {
+                                  const next = new Set(fraudExcludedCounterparties);
+                                  if (e.target.checked) next.add(c); else next.delete(c);
+                                  setFraudExcludedCounterparties(next);
+                                }}
+                              />
+                              <span className="truncate" title={c}>{c}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                       <div className="border border-[var(--border)] rounded-lg p-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Beneficiary</span>
-                          {fraudExcludedBeneficiaries.size > 0 && (
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">Exclude Beneficiary {fraudExcludedBeneficiaries.size > 0 && <span className="text-red-600">({fraudExcludedBeneficiaries.size})</span>}</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => setFraudExcludedBeneficiaries(new Set(fraudBeneficiaries))}
+                              className="text-[10px] text-indigo-600 hover:underline">All</button>
                             <button onClick={() => setFraudExcludedBeneficiaries(new Set())}
-                              className="text-[10px] text-red-600 hover:underline">Clear ({fraudExcludedBeneficiaries.size})</button>
-                          )}
-                        </div>
-                        <select
-                          className="w-full bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 text-xs"
-                          value=""
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const next = new Set(fraudExcludedBeneficiaries);
-                            next.add(val);
-                            setFraudExcludedBeneficiaries(next);
-                          }}
-                        >
-                          <option value="">+ Add beneficiary to exclude…</option>
-                          {fraudBeneficiaries.filter(b => !fraudExcludedBeneficiaries.has(b)).map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                        {fraudExcludedBeneficiaries.size > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {Array.from(fraudExcludedBeneficiaries).sort().map(b => (
-                              <span key={b} className="inline-flex items-center gap-1 text-[10px] bg-red-50 border border-red-200 text-red-600 rounded px-1.5 py-0.5">
-                                {b}
-                                <button onClick={() => {
-                                  const next = new Set(fraudExcludedBeneficiaries);
-                                  next.delete(b);
-                                  setFraudExcludedBeneficiaries(next);
-                                }} className="hover:text-red-800">×</button>
-                              </span>
-                            ))}
+                              className="text-[10px] text-red-600 hover:underline">None</button>
                           </div>
-                        )}
+                        </div>
+                        <div className="max-h-40 overflow-y-auto border border-[var(--border-subtle)] rounded bg-[var(--bg-page)] p-1.5">
+                          {fraudBeneficiaries.map(b => (
+                            <label key={b} className="flex items-center gap-1.5 text-[11px] cursor-pointer hover:bg-[var(--bg-muted)] px-1 py-0.5 rounded">
+                              <input type="checkbox"
+                                checked={fraudExcludedBeneficiaries.has(b)}
+                                onChange={e => {
+                                  const next = new Set(fraudExcludedBeneficiaries);
+                                  if (e.target.checked) next.add(b); else next.delete(b);
+                                  setFraudExcludedBeneficiaries(next);
+                                }}
+                              />
+                              <span className="truncate" title={b}>{b}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
