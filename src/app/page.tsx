@@ -46,18 +46,15 @@ type RateConfig = {
 };
 
 // Resolve the rate (as decimal) for a given strategy/year using this hierarchy:
-// 1. per-strategy-per-year (most specific)
-// 2. per-year (yearly wins over strategy flat)
-// 3. per-strategy flat (fallback when no yearly)
-// 4. default
+// 1. per-strategy-per-year (most specific, highest priority)
+// 2. per-year (fallback)
+// 3. 0 (no growth if neither is set)
 function resolveRate(strategy: string, year: number, config: RateConfig): number {
   const sy = config.strategyYearlyRates[strategy]?.[year];
   if (sy != null) return sy / 100;
   const y = config.yearlyRates[year];
   if (y != null) return y / 100;
-  const s = config.strategyRates[strategy];
-  if (s != null) return s / 100;
-  return config.defaultRate;
+  return 0;
 }
 
 // Compound a balance from one date to another, applying the rate hierarchy by year.
@@ -3245,12 +3242,6 @@ export default function Home() {
                           {fraudBeneficiaries.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
-                        <input type="number" min={0} max={100} step={0.5} value={fraudReturnRate}
-                          onChange={e => setFraudReturnRate(Number(e.target.value) || 0)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
-                      </div>
                       <button
                         onClick={() => { setReturnsPanelScope("fraud"); setReturnsPanelOpen(true); }}
                         className="px-3 py-1.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold"
@@ -3314,7 +3305,7 @@ export default function Home() {
                           <div className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Present Value</div>
                             <div className="text-lg font-bold text-red-600">{fmt(totalPV)}</div>
-                            <div className="text-[10px] text-[var(--text-muted)]">at {fraudReturnRate}% annual</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">per-year rates</div>
                           </div>
                           <div className="bg-[var(--bg)] border border-red-200 rounded-lg p-3 text-center">
                             <div className="text-[10px] text-[var(--text-muted)] uppercase">Lost Growth</div>
@@ -3531,12 +3522,6 @@ export default function Home() {
                           {pvCounterparties.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-[var(--text-muted)]">Default annual return (%):</label>
-                        <input type="number" min={0} max={100} step={0.5} value={pvReturnRate}
-                          onChange={e => setPvReturnRate(Number(e.target.value) || 0)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1 w-20 text-sm" />
-                      </div>
                       <button
                         onClick={() => { setReturnsPanelScope("pv"); setReturnsPanelOpen(true); }}
                         className="px-3 py-1.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold"
@@ -3587,7 +3572,7 @@ export default function Home() {
                       <div className="bg-[var(--bg)] border border-indigo-200 rounded-2xl p-3 text-center">
                         <div className="text-[10px] text-[var(--text-muted)] uppercase">Compounded Value</div>
                         <div className="text-lg font-bold text-indigo-600">{fmt(totalCompounded)}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">at {pvReturnRate}% · growth: {fmt(totalGrowth)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">per-year rates · growth: {fmt(totalGrowth)}</div>
                       </div>
                     </div>
 
@@ -4044,28 +4029,16 @@ export default function Home() {
               <button onClick={() => setReturnsPanelOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-2xl leading-none">&times;</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* Default */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">1. Default Annual Return</h4>
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">Used when no year-specific, strategy-specific, or strategy+year rate is set.</p>
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0} max={100} step={0.5} value={defaultRate}
-                    onChange={e => setDefaultRate(Number(e.target.value) || 0)}
-                    className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 w-24 text-sm" />
-                  <span className="text-xs text-[var(--text-muted)]">%</span>
-                </div>
-              </div>
-
               {/* Per-year */}
               <div>
-                <h4 className="text-sm font-semibold mb-2">2. Per-Year Return</h4>
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">Overrides the default for specific years. Leave blank to fall back to default.</p>
+                <h4 className="text-sm font-semibold mb-2">1. Per-Year Return</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">Base rate for each year. Leave blank = 0% (no growth) for that year.</p>
                 <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                   {years.map(y => (
                     <div key={y} className="flex items-center gap-1">
                       <span className="text-xs text-[var(--text-secondary)] w-10">{y}</span>
                       <input type="number" min={0} max={100} step={0.5}
-                        placeholder={String(defaultRate)}
+                        placeholder="0"
                         value={yearlyRates[y] ?? ""}
                         onChange={e => updateYearly(y, e.target.value)}
                         className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
@@ -4074,32 +4047,11 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Per-strategy */}
-              {strategies.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">3. Per-Strategy Flat Return</h4>
-                  <p className="text-[11px] text-[var(--text-muted)] mb-2">Overrides per-year rates for transactions with this strategy. Leave blank to use yearly/default.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {strategies.map(s => (
-                      <div key={s} className="flex items-center gap-2 border border-[var(--border)] rounded px-2 py-1.5">
-                        <span className="text-xs text-[var(--text-secondary)] truncate flex-1" title={s}>{s}</span>
-                        <input type="number" min={0} max={100} step={0.5}
-                          placeholder={String(defaultRate)}
-                          value={stratRates[s] ?? ""}
-                          onChange={e => updateStratFlat(s, e.target.value)}
-                          className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-2 py-1 w-16 text-xs" />
-                        <span className="text-[10px] text-[var(--text-muted)]">%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Per-strategy per-year */}
               {strategies.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-semibold mb-2">4. Per-Strategy Per-Year Return</h4>
-                  <p className="text-[11px] text-[var(--text-muted)] mb-2">Highest priority. Overrides everything for this strategy + year. Leave blank to fall through.</p>
+                  <h4 className="text-sm font-semibold mb-2">2. Per-Strategy Per-Year Return (highest priority)</h4>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-2">Overrides the per-year rate for transactions with this strategy in that year. Leave blank to use the per-year rate.</p>
                   <div className="space-y-3">
                     {strategies.map(s => (
                       <div key={s} className="border border-[var(--border)] rounded-lg p-2">
@@ -4109,7 +4061,7 @@ export default function Home() {
                             <div key={y} className="flex items-center gap-1">
                               <span className="text-[10px] text-[var(--text-secondary)] w-8">{y}</span>
                               <input type="number" min={0} max={100} step={0.5}
-                                placeholder="—"
+                                placeholder={yearlyRates[y] != null ? String(yearlyRates[y]) : "0"}
                                 value={stratYearlyRates[s]?.[y] ?? ""}
                                 onChange={e => updateStratYearly(s, y, e.target.value)}
                                 className="bg-[var(--bg-page)] border border-[var(--border)] rounded px-1.5 py-1 w-14 text-[11px]" />
