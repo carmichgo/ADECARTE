@@ -3399,6 +3399,49 @@ export default function Home() {
                           </div>
                         </div>
 
+                        {/* Stolen per year breakdown */}
+                        {(() => {
+                          const byYear: Record<number, { amount: number; pv: number; count: number }> = {};
+                          fraudWithPV.forEach((t: any) => {
+                            const y = new Date(t.date).getFullYear();
+                            if (!byYear[y]) byYear[y] = { amount: 0, pv: 0, count: 0 };
+                            byYear[y].amount += t.amount;
+                            byYear[y].pv += t.presentValue;
+                            byYear[y].count++;
+                          });
+                          const sortedYears = Object.entries(byYear).sort((a, b) => Number(a[0]) - Number(b[0]));
+                          return (
+                          <div className="border border-[var(--border)] rounded-xl overflow-hidden mb-5">
+                            <table className="w-full text-xs">
+                              <thead><tr className="bg-[var(--bg-muted)] text-[var(--text-muted)]">
+                                <th className="px-3 py-2 text-left">Year</th>
+                                <th className="px-3 py-2 text-right"># Txns</th>
+                                <th className="px-3 py-2 text-right">Amount Stolen</th>
+                                <th className="px-3 py-2 text-right">Present Value</th>
+                                <th className="px-3 py-2 text-right">Growth</th>
+                              </tr></thead>
+                              <tbody>
+                                {sortedYears.map(([year, data]) => (
+                                  <tr key={year} className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-muted)]">
+                                    <td className="px-3 py-1.5 font-semibold">{year}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums">{data.count}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums text-red-600">{fmt(data.amount)}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums text-red-600">{fmt(data.pv)}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums text-red-500">{fmt(data.pv - data.amount)}</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t-2 border-red-200 font-bold">
+                                  <td className="px-3 py-2">TOTAL</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{fraudWithPV.length}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-red-600">{fmt(totalStolen)}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-red-600">{fmt(totalPV)}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-red-500">{fmt(totalGrowth)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>);
+                        })()}
+
                         {/* Counterfactual chart */}
                         <ResponsiveContainer width="100%" height={350}>
                           <LineChart data={counterfactualData}>
